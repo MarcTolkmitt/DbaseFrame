@@ -39,9 +39,77 @@ namespace DbaseFrame
         {
             InitializeComponent();
 
-            Display( "Init ... ok" );
+            Display( "Init ... OK" );
 
         }   // end: public MainWindow
+
+
+
+        // ---------------------------------------------     helper functions
+
+        /// <summary>
+        /// helper function, writing array data into a string
+        /// </summary>
+        /// <param name="data">2d ragged array </param>
+        /// <returns>the data as string</returns>
+        public string ArrayJaggedToString( string[][] data, bool textWrap = false )
+        {
+            string text = "";
+
+            foreach ( string[] dat in data )
+            {
+                text += $" [ {string.Join( ", ", dat )} ] ";
+                if ( textWrap )
+                    text += "\n";
+
+            }
+            text += "\n";
+            return ( text );
+
+        }   // end: ArrayToString
+
+        /// <summary>
+        /// helper function, writing array data into a string
+        /// </summary>
+        /// <param name="data">array </param>
+        /// <returns>the data as string</returns>
+        public string ArrayToString( string[] data )
+        {
+            string text = "";
+
+            foreach ( var dat in data )
+            {
+                text += $" [ {string.Join( ", ", dat )} ] ";
+
+            }
+            //text += "\n";
+            return ( text );
+
+        }   // end: ArrayToString
+
+        /// <summary>
+        /// helper function to write the text into the main window
+        /// </summary>
+        /// <param name="text">input string</param>
+        public void Display( string? text )
+        {
+            if ( !string.IsNullOrEmpty( text ) )
+                textBlock.Text += text + "\n";
+            textScroll.ScrollToBottom();
+
+        }   // end: Display
+
+        /// <summary>
+        /// helper function to write the text into the main window
+        /// </summary>
+        /// <param name="text">any-object-variant</param>
+        private void Display( Object obj )
+        {
+            Display( obj.ToString() );
+
+        }   // end: Display
+
+        // ----------------------------------------     Events
 
         /// <summary>
         /// handler function -> Window_Closing
@@ -65,53 +133,25 @@ namespace DbaseFrame
 
         }   // end: MenuQuit_Click
 
-
-
-        // ---------------------------------------------     helper functions
-
         /// <summary>
-        /// helper function, writing array data into a string
+        /// handler function -> MenuItem
+        /// used for exit routines
         /// </summary>
-        /// <param name="data">2d ragged array </param>
-        /// <returns>the data as string</returns>
-        public string ArrayToString( double[][] data, bool textWrap = false )
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            string text = "";
+            ExcelReadStringList readExcel = new ExcelReadStringList();
+            foreach ( string[] line in readExcel.values )
+                Display( ArrayToString( line ) );
 
-            foreach ( double[] dat in data )
-            {
-                text += $" [ {string.Join( ", ", dat )} ] ";
-                if ( textWrap )
-                    text += "\n";
+            var rowArray = readExcel.values.ToArray();
+            Display( ArrayJaggedToString( rowArray, true ) );
 
-            }
-            text += "\n";
-            return ( text );
-
-        }   // end: ArrayToString
-
-        /// <summary>
-        /// helper function to write the text into the main window
-        /// </summary>
-        /// <param name="text">input string</param>
-        public void Display( string? text )
-        {
-            if ( !string.IsNullOrEmpty( text ) )
-                textBlock.Text += text + "\n";
-            textScroll.ScrollToBottom();
-
-        }   // end: Display
-
-        /// <summary>
-        /// helper function to write the text into the main window
-        /// </summary>
-        /// <param name="text">any-object-variant</param>
-        private void Display( int obj )
-        {
-            Display( obj.ToString() );
-
-        }   // end: Display
-
+            var listRows = rowArray.ToList();
+            foreach ( string[] line in listRows )
+                Display( ArrayToString( line ) );
+        }
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame

@@ -12,7 +12,11 @@
             <MenuItem Header="_File">
                 <MenuItem Header="_Quit" Click="MenuQuit_Click"/>
             </MenuItem>
+            <MenuItem Header="OleDb Excel">
+                <MenuItem x:Name="_mItemExcelListStringArray" Header="Read Excel as List of string[]" Click="_mItemExcelListStringArray_Click" />
+            </MenuItem>
         </Menu>
+        
         <ScrollViewer x:Name="textScroll" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" DockPanel.Dock="Top" Margin="10">
             <TextBlock x:Name="textBlock" TextWrapping="Wrap" HorizontalAlignment="Left" Margin="10"/>
 
