@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Data.OleDb;
 using System.Windows.Controls;
 using System.IO;
+using System.Net;
+using System.Windows.Media.Animation;
 
 namespace DbaseFrame
 {
@@ -18,12 +20,16 @@ namespace DbaseFrame
             "Data Source=";
         string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
-        string connectionString;
+        string connectionString = "";
         public List<string[]> values;
 
-        public ExcelReadStringList( string file = "" )
+        public ExcelReadStringList( string file = "", bool silent = true )
         {
-            if ( file != "" )
+            string fileName = file;
+            bool ok = false;
+            if ( !silent ) 
+                ok = DialogFileName( ref fileName );
+            if ( fileName != "" )
                 connectionString =
                     conStringStart + file + conStringEnd;
             else
@@ -66,6 +72,35 @@ namespace DbaseFrame
             return ( text );
 
         }   // end: GetDirectory
+
+        /// <summary>
+        /// Queries a filename from the user with the standard dialog.
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public bool DialogFileName( ref string fileName )
+        {
+            // Configure open file dialog box
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.FileName = fileName; // Default file name
+            dialog.DefaultExt = ".xlsx"; // Default file extension
+            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultDirectory = GetDirectory();
+
+            // Show open file dialog box
+            bool? result = dialog.ShowDialog();
+
+            // Process open file dialog box results
+            if ( result == true )
+            {
+                // Open document
+                fileName = dialog.FileName;
+                return ( true );
+
+            }
+            return ( false );
+
+        }   // end: DialogFileName
 
     }   // end: OleDBReadString
 

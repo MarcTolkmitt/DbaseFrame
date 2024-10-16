@@ -141,7 +141,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            ExcelReadStringList readExcel = new ExcelReadStringList();
+            ExcelReadStringList readExcel = new ExcelReadStringList( "", false );
             foreach ( string[] line in readExcel.values )
                 Display( ArrayToString( line ) );
 
