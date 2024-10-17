@@ -1,19 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.OleDb;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Data.OleDb;
-using System.Windows.Controls;
-using System.IO;
-using System.Net;
-using System.Windows.Media.Animation;
 
 namespace DbaseFrame
 {
-    public class ExcelReadStringList
+    public class ExcelWriteStringList
     {
-
         // Connect to the Excel file
         string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
@@ -23,11 +19,11 @@ namespace DbaseFrame
         string connectionString = "";
         public List<string[]> values;
 
-        public ExcelReadStringList( string file = "", bool silent = true )
+        public ExcelWriteStringList( string file = "", bool silent = true )
         {
             string fileName = file;
             bool ok = false;
-            if ( !silent ) 
+            if ( !silent )
                 ok = DialogFileName( ref fileName );
             if ( fileName != "" )
                 connectionString =
@@ -35,29 +31,30 @@ namespace DbaseFrame
             else
                 connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
                     "Data Source=" +
-                    "C:\\" + 
-                    "Parable_Demo.xlsx" +
+                    "C:\\" +
+                    "Write_Excel_Demo.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
 
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
-                conn.Open();
-                OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
+                conn.Open( );
+                OleDbCommand command = new OleDbCommand("INSERT INTO [Sheet1$] (Column1, Column2) VALUES (@Value1, @Value2)", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                values = new List<string[]>();
+                values = new List<string[ ]>( );
 
-                while ( reader.Read() )
+                while ( reader.Read( ) )
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader[ pos ].ToString();
+                        temp[ pos ] = reader[ pos ].ToString( );
                     values.Add( temp );
 
                 }
-                
+
             }
 
-        }   // end: OleDBReadString ( constructor )
+
+        }   // end: public ExcelWriteStringList ( constructor )
 
         /// <summary>
         /// Delivers the working directory with the systems separator
@@ -85,7 +82,7 @@ namespace DbaseFrame
             dialog.FileName = fileName; // Default file name
             dialog.DefaultExt = ".xlsx"; // Default file extension
             dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
-            dialog.DefaultDirectory = GetDirectory();
+            dialog.DefaultDirectory = GetDirectory( );
 
             // Show open file dialog box
             bool? result = dialog.ShowDialog();
@@ -102,6 +99,6 @@ namespace DbaseFrame
 
         }   // end: DialogFileName
 
-    }   // end: OleDBReadString
+    }   // end: public class ExcelWriteStringList
 
 }   // end: namespace DbaseFrame

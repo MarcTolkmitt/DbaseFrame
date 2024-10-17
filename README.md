@@ -7,3 +7,43 @@ Starting as example codes for my programs i plan to create classes that handle i
 
 ## <u>2. Excel file handling</u>
 
+I will use **'System.Data.OleDb'** that is installed as NuGet package.
+
+They give you an easy job, if you are able of SQL. There are the drawbacks in this procedure and i personally don't like to have to form a string in this SQL way. First argument to finish this once for all into a helper class.
+
+Procedure is always the same in having a 'connectionString' like 
+
+```c#
+connectionString = 
+    "Provider=Microsoft.ACE.OLEDB.12.0;" +
+    "Data Source=" +
+    "C:\\" + 
+    "Parable_Demo.xlsx" +
+	";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+```
+
+Here you have the provider, the source file and special parameters in one set.
+
+And then you open a connection and send your SQL command like
+
+```c#
+using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+{
+    conn.Open();
+    OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
+    OleDbDataReader reader = command.ExecuteReader();
+    values = new List<string[]>();
+
+    while ( reader.Read() )
+    {
+        string[] temp = new string[ reader.FieldCount ];
+        for ( int pos = 0; pos < reader.FieldCount; pos++ )
+            temp[ pos ] = reader[ pos ].ToString();
+        values.Add( temp );
+
+    }
+            
+}
+```
+
+In this example the whole Excel spreadsheet is read in as a list of string[] - one array position for every column. Purpose is the buffering of anonymous data. You wouldn't need this on a known data constellation and could use Entity Framework for convenience.
