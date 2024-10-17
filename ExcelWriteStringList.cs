@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using System.Xml;
 
 namespace DbaseFrame
 {
@@ -34,6 +38,9 @@ namespace DbaseFrame
                     "C:\\" +
                     "Write_Excel_Demo.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+            string createTable = "CREATE TABLE table_name(" +
+                "column1 data_type,column2 data_type, " +
+                ")CONSTRAINT constraint_name[ PRIMARY KEY | UNIQUE | FOREIGN KEY ]);";
 
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
@@ -55,6 +62,22 @@ namespace DbaseFrame
 
 
         }   // end: public ExcelWriteStringList ( constructor )
+
+        /// <summary>
+        /// Creates a string filled with the numbering of the columns
+        /// for the SQL query.
+        /// </summary>
+        /// <param name="number">the length of the array</param>
+        /// <returns>the string</returns>
+        public string GetColumnNumber( int number )
+        {
+            string temp = "(";
+            for ( int i = 0; i < ( number - 1 ); i++ )
+                temp += $"{i},";
+            temp += $"{( number - 1 )})";
+            return ( temp );
+
+        }   // end: GetColumnNumber
 
         /// <summary>
         /// Delivers the working directory with the systems separator

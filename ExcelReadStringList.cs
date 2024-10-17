@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.IO;
 using System.Net;
 using System.Windows.Media.Animation;
+using System.Configuration;
 
 namespace DbaseFrame
 {
@@ -50,12 +51,12 @@ namespace DbaseFrame
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader[ pos ].ToString();
+                        temp[ pos ] = reader.GetString( pos );
                     values.Add( temp );
 
                 }
                 
-            }
+            }   // end: using
 
         }   // end: OleDBReadString ( constructor )
 
