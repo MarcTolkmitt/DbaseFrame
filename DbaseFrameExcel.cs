@@ -9,10 +9,11 @@ using System.IO;
 using System.Net;
 using System.Windows.Media.Animation;
 using System.Configuration;
+using System.Data;
 
 namespace DbaseFrame
 {
-    public class ExcelReadStringList
+    public class DbaseFrameExcel
     {
 
         // Connect to the Excel file
@@ -22,13 +23,20 @@ namespace DbaseFrame
         string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
         string connectionString = "";
-        public List<string[]> values;
+        string fileName = "";
+        public List<string[]> valuesString = new List<string[]>();
+        public List<double[]> valuesDouble = new List<double[]>();
 
-        public ExcelReadStringList( string file = "", bool silent = true )
+        /// <summary>
+        /// Constructor for the class. 
+        /// </summary>
+        /// <param name="file">a file name</param>
+        /// <param name="silent">query for the name via dialog ?</param>
+        public DbaseFrameExcel( string file = "", bool silent = true )
         {
-            string fileName = file;
+            fileName = file;
             bool ok = false;
-            if ( !silent ) 
+            if ( !silent )
                 ok = DialogFileName( ref fileName );
             if ( fileName != "" )
                 connectionString =
@@ -36,29 +44,97 @@ namespace DbaseFrame
             else
                 connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
                     "Data Source=" +
-                    "C:\\" + 
+                    "C:\\" +
                     "Parable_Demo.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
 
+
+        }   // end: DbaseFrameExcel ( constructor )
+
+        /// <summary>
+        /// Reads the table's data as anonymous array of
+        /// strings into 'valuesString'.
+        /// </summary>
+        /// <param name="file">filename</param>
+        /// <param name="silent">can use the file dialog</param>
+        public void ReadStringList( )
+        {
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
                 OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                values = new List<string[]>();
+                valuesString = new List<string[]>();
 
                 while ( reader.Read() )
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
                         temp[ pos ] = reader.GetString( pos );
-                    values.Add( temp );
+                    valuesString.Add( temp );
 
                 }
                 
             }   // end: using
 
-        }   // end: OleDBReadString ( constructor )
+        }   // end: ReadStringList
+
+        /// <summary>
+        /// Reads the table's data as anonymous array of
+        /// doubles into 'valuesDouble'.
+        /// </summary>
+        /// <param name="file">filename</param>
+        /// <param name="silent">can use the file dialog</param>
+        public void ReadDoubleList( )
+        {
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            {
+                conn.Open();
+                OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
+                OleDbDataReader reader = command.ExecuteReader();
+                valuesDouble = new List<double[]>();
+
+                while ( reader.Read() )
+                {
+                    double[] temp = new double[ reader.FieldCount ];
+                    for ( int pos = 0; pos < reader.FieldCount; pos++ )
+                        temp[ pos ] = reader.GetDouble( pos );
+                    valuesDouble.Add( temp );
+
+                }
+
+            }   // end: using
+
+        }   // end: ReadDoubleList
+
+        public int ReadTableNames()
+        {
+            DataTable? dt;
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            {
+                conn.Open();
+                dt = 
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
+            }   // end: using
+            if ( dt != null )
+            {
+                string[] sheets = new string[ dt.Rows.Count ];
+                int i = 0;
+                foreach( DataRow row in dt.Rows )
+                {
+                    sheets[ i ] = row[ "TABLE_NAME" ].ToString();
+                    i++;
+
+                }
+                ExcelTablesChoice choice = new ExcelTablesChoice( sheets, ref i );
+                return( i );
+
+            }
+            return( -1  );
+
+        }   // end: ReadTableNames
+
+        // ------------------------------ helpers
 
         /// <summary>
         /// Delivers the working directory with the systems separator

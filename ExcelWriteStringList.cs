@@ -69,7 +69,7 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="number">the length of the array</param>
         /// <returns>the string</returns>
-        public string GetColumnNumber( int number )
+        public string GetColumnNumberString( int number )
         {
             string temp = "(";
             for ( int i = 0; i < ( number - 1 ); i++ )
@@ -77,7 +77,7 @@ namespace DbaseFrame
             temp += $"{( number - 1 )})";
             return ( temp );
 
-        }   // end: GetColumnNumber
+        }   // end: GetColumnNumberString
 
         /// <summary>
         /// Delivers the working directory with the systems separator

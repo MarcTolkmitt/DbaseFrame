@@ -13,8 +13,13 @@
                 <MenuItem Header="_Quit" Click="MenuQuit_Click"/>
             </MenuItem>
             <MenuItem Header="OleDb Excel">
-                <MenuItem x:Name="_mItemExcelListStringArray" Header="Read Excel as List of string[]" Click="_mItemExcelListStringArray_Click" />
+                <MenuItem x:Name="_mItemExcelListStringArray" 
+                    Header="Read Excel as List of string[]" 
+                    Click="_mItemExcelListStringArray_Click" />
+                <MenuItem x:Name="_mItemReadTables" 
+                    Header="read the tables" Click="_mItemReadTables_Click"/>
             </MenuItem>
+            
         </Menu>
         
         <ScrollViewer x:Name="textScroll" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" DockPanel.Dock="Top" Margin="10">
