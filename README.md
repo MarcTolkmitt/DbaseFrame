@@ -42,7 +42,7 @@ using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
     {
         string[] temp = new string[ reader.FieldCount ];
         for ( int pos = 0; pos < reader.FieldCount; pos++ )
-            temp[ pos ] = reader.GetString( pos );
+            temp[ pos ] = reader[ pos ].ToString();
         values.Add( temp );
 
     }
