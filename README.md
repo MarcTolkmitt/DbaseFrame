@@ -1,4 +1,9 @@
+available as '**DbaseFrame.1.0.0.nupkg**'.
+
+
+
 ## <u>1. Overview: DbaseFrame</u>
+
 Project to gain usage of Excel-,Access-  and Sql-data with C#. This project serves as **example WPF-program** and **source** for the **utility classes**.
 
 My 'NPOIwrap' is closed for the reason that i believe 'NPOI' is <u>unsafe</u>. While debugging one of my programs these add-ons from 'NPOI' couldn't be deleted - they were hooked into the system and where denying their removal that way. You have to wake up to these hacks and move into action. For me it means starting  a new project with good old topics. The book 'C# 12 in a nutshell' claims to be a good source for this ambition ... so here i am today 15. October 2024.

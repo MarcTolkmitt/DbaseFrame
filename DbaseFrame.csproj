@@ -6,10 +6,33 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <Title>DbaseFrame</Title>
+    <Authors>Marc Tolkmitt</Authors>
+    <Description>Project to gain usage of Excel-,Access- and Sql-data with C#. This project serves as example WPF-program and source for the utility classes.</Description>
+    <PackageProjectUrl>https://github.com/MarcTolkmitt/DbaseFrame</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/MarcTolkmitt/DbaseFrame</RepositoryUrl>
+    <PackageTags>OleDB, Excel, C#</PackageTags>
+    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <PackageLicenseFile>Apache.txt</PackageLicenseFile>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <Copyright></Copyright>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Data.OleDb" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Apache.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>
