@@ -22,14 +22,13 @@ namespace DbaseFrame
     public partial class ExcelTablesChoice : Window
     {
         public string[] items = new string[ 3 ] { "Hund", "Katze", "Maus" };
-        int index = -1;
+        public int index = -1;
         
-        public ExcelTablesChoice( string[] dataStrings, ref int chosenIndex )
+        public ExcelTablesChoice( string[] dataStrings )
         {
             InitializeComponent();
-            index = chosenIndex;
             _listBox.ItemsSource = dataStrings.ToList();
-            Show();
+            ShowDialog();
 
         }   // end: ExcelTablesChoice
 

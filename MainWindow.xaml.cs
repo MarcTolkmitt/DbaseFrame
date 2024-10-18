@@ -32,6 +32,8 @@ namespace DbaseFrame
         /// last edit: 15.10.24
         /// </summary>
         Version version = new Version( "1.0.3" );
+        DbaseFrameExcel readExcel;
+
         /// <summary>
         /// standard constructor
         /// </summary>
@@ -71,9 +73,49 @@ namespace DbaseFrame
         /// <summary>
         /// helper function, writing array data into a string
         /// </summary>
+        /// <param name="data">2d ragged array </param>
+        /// <returns>the data as string</returns>
+        public string ArrayJaggedToString( double[][] data, bool textWrap = false )
+        {
+            string text = "";
+
+            foreach ( double[] dat in data )
+            {
+                text += $" [ {string.Join( ", ", dat )} ] ";
+                if ( textWrap )
+                    text += "\n";
+
+            }
+            text += "\n";
+            return ( text );
+
+        }   // end: ArrayToString
+
+        /// <summary>
+        /// helper function, writing array data into a string
+        /// </summary>
         /// <param name="data">array </param>
         /// <returns>the data as string</returns>
         public string ArrayToString( string[] data )
+        {
+            string text = "";
+
+            foreach ( var dat in data )
+            {
+                text += $" [ {string.Join( ", ", dat )} ] ";
+
+            }
+            //text += "\n";
+            return ( text );
+
+        }   // end: ArrayToString
+
+        /// <summary>
+        /// helper function, writing array data into a string
+        /// </summary>
+        /// <param name="data">array </param>
+        /// <returns>the data as string</returns>
+        public string ArrayToString( double[] data )
         {
             string text = "";
 
@@ -134,14 +176,52 @@ namespace DbaseFrame
         }   // end: MenuQuit_Click
 
         /// <summary>
-        /// handler function -> MenuItem
-        /// used for exit routines
+        /// handler function -> _mItemLoadExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemLoadExcel_Click( object sender, RoutedEventArgs e )
+        {
+            readExcel = new DbaseFrameExcel( "", false );
+
+        }   // end: _mItemLoadExcel_Click
+
+        /// <summary>
+        /// handler function -> _mItemReadTables_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemReadTables_Click( object sender, RoutedEventArgs e )
+        {
+            int result = readExcel.ReadTableNames();
+            Display( $"Chosen table is number { result }" );
+            Display( $"Chosen table is {readExcel.sheets[ result ]}" );
+
+        }   // end: _mItemReadTables_Click
+
+        /// <summary>
+        /// handler function -> _mItemReadTableNumber_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemReadTableNumber_Click( object sender, RoutedEventArgs e )
+        {
+            for ( int i = 0; i < 10; i++ )
+            {
+                string result = readExcel.GetTableName( i );
+                Display( $"Table {i}: {result}" );
+
+            }
+
+        }   // end: _mItemReadTableNumber_Click
+
+        /// <summary>
+        /// handler function -> _mItemExcelListStringArray_Click
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            DbaseFrameExcel readExcel = new DbaseFrameExcel( "", false );
             readExcel.ReadStringList();
             foreach ( string[] line in readExcel.valuesString )
                 Display( ArrayToString( line ) );
@@ -156,16 +236,23 @@ namespace DbaseFrame
         }   // end: _mItemExcelListStringArray_Click
 
         /// <summary>
-        /// handler function -> MenuItem
-        /// used for exit routines
+        /// handler function -> _mItemExcelListDoubleArray_Click
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
-        private void _mItemReadTables_Click( object sender, RoutedEventArgs e )
+        private void _mItemExcelListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
-            DbaseFrameExcel readExcel = new DbaseFrameExcel( "", false );
-            Display( $"Chosen table is {readExcel.ReadTableNames() }" );
-        }
+            readExcel.ReadDoubleList();
+            foreach ( double[] line in readExcel.valuesDouble )
+                Display( ArrayToString( line ) );
+
+            var rowArray = readExcel.valuesString.ToArray();
+            Display( ArrayJaggedToString( rowArray, true ) );
+
+
+
+        }   // end: _mItemExcelListDoubleArray_Click
+
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame

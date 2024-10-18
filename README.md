@@ -51,3 +51,36 @@ using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
 ```
 
 In this example the whole Excel spreadsheet is read in as a list of string[] - one array position for every column. Purpose is the buffering of anonymous data. You wouldn't need this on a known data constellation and could use Entity Framework for convenience.
+
+## <u>2.1 demoprogram's menu 'OleDb Excel'</u>
+
+An example procedure for testing the class is given here.
+
+1. '**open Excel file by dialog'** lets you choose the right file with the common file dialog. If you want to change it you choose again. Any operation afterwards uses that chosen Excel file.
+2. **'read the tables'** gives you the dialog to choose one of the found table in this file.
+3. **'read table names by number'** show how to query the table's name with a index number.
+4. **'read chosen table as List of string[]'** will read any cell of the table as a 'string'.
+5. **'read the chosen table as List of double[]'** will read the cells as double if they are of that type or you will see a 0 ( standard initialization ). Good for buffering data in with no exception.
+
+The demo is using one instance of the **'DbaseFrameExcel'** class for the whole show. While i use internally lists for the read data you easily can use arrays as they are sort of ambiguous towards each other.
+
+```c#
+readExcel.ReadStringList();
+foreach ( string[] line in readExcel.valuesString )
+    Display( ArrayToString( line ) );
+
+var rowArray = readExcel.valuesString.ToArray();
+	Display( ArrayJaggedToString( rowArray, true ) );
+
+var listRows = rowArray.ToList();
+    foreach ( string[] line in listRows )
+        Display( ArrayToString( line ) );
+```
+
+=> 'listRows' will be a same sized and same looking list like the original.
+
+### <u>4.Donations</u>
+
+You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
+
+https://www.paypal.com/ncp/payment/QBF7E2ZG4J8NU

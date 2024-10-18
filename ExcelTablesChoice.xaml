@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DbaseFrame"
         mc:Ignorable="d"
+        WindowStartupLocation="CenterOwner"
         Title="choose one of the found Excel tables:" Height="237" Width="400">
     <DockPanel>
         <Button DockPanel.Dock="Bottom"

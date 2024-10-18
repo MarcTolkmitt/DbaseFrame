@@ -26,6 +26,8 @@ namespace DbaseFrame
         string fileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
+        public string[] sheets;
+        public int sheetNumber = -1;
 
         /// <summary>
         /// Constructor for the class. 
@@ -62,7 +64,7 @@ namespace DbaseFrame
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
-                OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
+                OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 valuesString = new List<string[]>();
 
@@ -70,7 +72,7 @@ namespace DbaseFrame
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader.GetString( pos );
+                        temp[ pos ] = reader[ pos ].ToString();
                     valuesString.Add( temp );
 
                 }
@@ -90,7 +92,7 @@ namespace DbaseFrame
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
-                OleDbCommand command = new OleDbCommand("SELECT * FROM [table0$]", conn);
+                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 valuesDouble = new List<double[]>();
 
@@ -98,7 +100,8 @@ namespace DbaseFrame
                 {
                     double[] temp = new double[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader.GetDouble( pos );
+                        if ( reader[ pos ].GetType() == typeof( double ) )
+                            temp[ pos ] = reader.GetDouble( pos );
                     valuesDouble.Add( temp );
 
                 }
@@ -109,39 +112,67 @@ namespace DbaseFrame
 
         public int ReadTableNames()
         {
-            DataTable? dt;
+            DataTable? dt = null;
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
                 dt = 
                     conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
+
             }   // end: using
+
             if ( dt != null )
             {
-                string[] sheets = new string[ dt.Rows.Count ];
-                int i = 0;
-                foreach( DataRow row in dt.Rows )
+                sheets = new string[ dt.Rows.Count ];
+                
+                for ( int i = 0; i < sheets.Length; i++ )
                 {
-                    sheets[ i ] = row[ "TABLE_NAME" ].ToString();
-                    i++;
-
+                    sheets[ i ] = ((DataRow)dt.Rows[ i ])[ "TABLE_NAME" ].ToString();
+                    string hallo = sheets[ i ];
                 }
-                ExcelTablesChoice choice = new ExcelTablesChoice( sheets, ref i );
-                return( i );
+
+                ExcelTablesChoice choice = new ExcelTablesChoice( sheets );
+                sheetNumber = choice.index;
+                return( sheetNumber );
 
             }
-            return( -1  );
+            return( 0 );
 
         }   // end: ReadTableNames
 
-        // ------------------------------ helpers
-
         /// <summary>
-        /// Delivers the working directory with the systems separator
-        /// symbol.
+        /// Direct query for the table name.
         /// </summary>
-        /// <returns>working directory...</returns>
-        string GetDirectory( )
+        /// <param name="numTable">number of the sheet</param>
+        /// <returns>the name or 'string.empty'</returns>
+        public string GetTableName( int numTable )
+        {
+            DataTable? dt = null;
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            {
+                conn.Open();
+                dt =
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
+
+            }   // end: using
+
+            if ( ( dt != null )
+                && ( dt.Rows.Count > numTable ) )
+            {
+                return ( ( (DataRow)dt.Rows[ numTable ] )[ "TABLE_NAME" ].ToString() );
+            }
+            return( string.Empty );
+
+            }   // end: GetTableName
+
+            // ------------------------------ helpers
+
+            /// <summary>
+            /// Delivers the working directory with the systems separator
+            /// symbol.
+            /// </summary>
+            /// <returns>working directory...</returns>
+            string GetDirectory( )
         {
             string text =
                 Directory.GetCurrentDirectory()
