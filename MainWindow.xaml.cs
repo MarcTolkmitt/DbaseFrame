@@ -223,15 +223,17 @@ namespace DbaseFrame
         private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
             readExcel.ReadStringList();
+            Display( "\nthe read data:" );
             foreach ( string[] line in readExcel.valuesString )
                 Display( ArrayToString( line ) );
-
+            Display( "\nstring list as jagged array:" );
             var rowArray = readExcel.valuesString.ToArray();
             Display( ArrayJaggedToString( rowArray, true ) );
-
             var listRows = rowArray.ToList();
+            Display( "jagged array as list again:" );
             foreach ( string[] line in listRows )
                 Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
 
         }   // end: _mItemExcelListStringArray_Click
 
@@ -243,13 +245,17 @@ namespace DbaseFrame
         private void _mItemExcelListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
             readExcel.ReadDoubleList();
+            Display( "\nthe read data:" );
             foreach ( double[] line in readExcel.valuesDouble )
                 Display( ArrayToString( line ) );
-
-            var rowArray = readExcel.valuesString.ToArray();
+            Display( "\ndouble list as jagged array:" );
+            var rowArray = readExcel.valuesDouble.ToArray();
             Display( ArrayJaggedToString( rowArray, true ) );
-
-
+            var listRows = rowArray.ToList();
+            Display( "jagged array as list again:" );
+            foreach ( double[] line in listRows )
+                Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
 
         }   // end: _mItemExcelListDoubleArray_Click
 
