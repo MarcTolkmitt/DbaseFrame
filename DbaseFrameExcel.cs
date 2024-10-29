@@ -1,4 +1,21 @@
-﻿using System;
+﻿/* ====================================================================
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for Additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+==================================================================== */
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,6 +32,11 @@ namespace DbaseFrame
 {
     public class DbaseFrameExcel
     {
+        /// <summary>
+        /// created on: 22.01.24
+        /// last edit: 29.10.24
+        /// </summary>
+        Version version = new Version( "1.0.4" );
 
         // Connect to the Excel file
         string conStringStart =
@@ -23,7 +45,9 @@ namespace DbaseFrame
         string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
         string connectionString = "";
+        string targetConnectionString = "";
         string fileName = "";
+        string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
         public string[] sheets;
@@ -39,7 +63,7 @@ namespace DbaseFrame
             fileName = file;
             bool ok = false;
             if ( !silent )
-                ok = DialogFileName( ref fileName );
+                ok = DialogFileNameLoad( ref fileName );
             if ( fileName != "" )
                 connectionString =
                     conStringStart + fileName + conStringEnd;
@@ -52,6 +76,82 @@ namespace DbaseFrame
 
 
         }   // end: DbaseFrameExcel ( constructor )
+
+        // ------------------------------ helpers
+
+        /// <summary>
+        /// Delivers the working directory with the systems separator
+        /// symbol.
+        /// </summary>
+        /// <returns>working directory...</returns>
+        string GetDirectory( )
+        {
+            string text =
+                Directory.GetCurrentDirectory()
+                + System.IO.Path.DirectorySeparatorChar;
+            return ( text );
+
+        }   // end: GetDirectory
+
+        /// <summary>
+        /// Queries a filename from the user with the standard dialog.
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public bool DialogFileNameLoad( ref string fileName )
+        {
+            // Configure open file dialog box
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.FileName = fileName; // Default file name
+            dialog.DefaultExt = ".xlsx"; // Default file extension
+            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultDirectory = GetDirectory();
+
+            // Show open file dialog box
+            bool? result = dialog.ShowDialog();
+
+            // Process open file dialog box results
+            if ( result == true )
+            {
+                // Open document
+                fileName = dialog.FileName;
+                return ( true );
+
+            }
+            return ( false );
+
+        }   // end: DialogFileNameLoad
+
+        /// <summary>
+        /// Queries a filename from the user with the standard dialog.
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public bool DialogFileNameSave( ref string fileName )
+        {
+            // Configure open file dialog box
+            var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.FileName = fileName; // Default file name
+            dialog.DefaultExt = ".xlsx"; // Default file extension
+            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultDirectory = GetDirectory();
+
+            // Show open file dialog box
+            bool? result = dialog.ShowDialog();
+
+            // Process open file dialog box results
+            if ( result == true )
+            {
+                // Open document
+                fileName = dialog.FileName;
+                return ( true );
+
+            }
+            return ( false );
+
+        }   // end: DialogFileNameLoad
+
+        // --------------------------------------------     the routines
 
         /// <summary>
         /// Reads the table's data as anonymous array of
@@ -110,6 +210,11 @@ namespace DbaseFrame
 
         }   // end: ReadDoubleList
 
+        /// <summary>
+        /// Returns the number of a chosen table. A dialog will open to let you choose from
+        /// the found table names.
+        /// </summary>
+        /// <returns>the number</returns>
         public int ReadTableNames()
         {
             DataTable? dt = null;
@@ -136,7 +241,7 @@ namespace DbaseFrame
                 return( sheetNumber );
 
             }
-            return( 0 );
+            return( -1 );
 
         }   // end: ReadTableNames
 
@@ -163,52 +268,126 @@ namespace DbaseFrame
             }
             return( string.Empty );
 
-            }   // end: GetTableName
-
-            // ------------------------------ helpers
-
-            /// <summary>
-            /// Delivers the working directory with the systems separator
-            /// symbol.
-            /// </summary>
-            /// <returns>working directory...</returns>
-            string GetDirectory( )
-        {
-            string text =
-                Directory.GetCurrentDirectory()
-                + System.IO.Path.DirectorySeparatorChar;
-            return ( text );
-
-        }   // end: GetDirectory
+        }   // end: GetTableName
 
         /// <summary>
-        /// Queries a filename from the user with the standard dialog.
+        /// Target file name for the writing is chosen. Produces the
+        /// 'targetConnectionString' for convenience.
         /// </summary>
-        /// <param name="fileName"></param>
-        /// <returns></returns>
-        public bool DialogFileName( ref string fileName )
+        /// <param name="file">already known ?</param>
+        /// <param name="silent">use the dialog ?</param>
+        public void ChooseTarget( string file = "", bool silent = true )
         {
-            // Configure open file dialog box
-            var dialog = new Microsoft.Win32.OpenFileDialog();
-            dialog.FileName = fileName; // Default file name
-            dialog.DefaultExt = ".xlsx"; // Default file extension
-            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
-            dialog.DefaultDirectory = GetDirectory();
+            targetFileName = file;
+            /*
+            // Configure save file dialog box
+            var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.FileName = "FFN"; // Default file name
+            dialog.DefaultExt = ".network"; // Default file extension
+            dialog.Filter = "network save file (.network)|*.network"; // Filter files by extension
+            dialog.DefaultDirectory = workingDirectory;
 
-            // Show open file dialog box
+            // Show save file dialog box
             bool? result = dialog.ShowDialog();
 
-            // Process open file dialog box results
-            if ( result == true )
+
+            */
+            bool ok = false;
+            if ( !silent )
+                ok = DialogFileNameSave( ref targetFileName );
+            if ( targetFileName != "" )
+                targetConnectionString =
+                    conStringStart + targetFileName + conStringEnd;
+            else
+                targetConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
+                    "Data Source=" +
+                    "C:\\" +
+                    "NewTarget.xlsx" +
+                    ";Extended Properties=\"Excel 12.0 Xml;HDR=yes;\"";
+
+
+        }   // end: ChooseTarget
+
+
+        /// <summary>
+        /// Intern data list double will be written into a new 
+        /// Excel file. If not given a name a dialog will query for it.
+        /// </summary>
+        /// <param name="newFileTarget"></param>
+        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newTable" )
+        {
+            bool overwrite = false;
+            while ( !overwrite )
             {
-                // Open document
-                fileName = dialog.FileName;
-                return ( true );
+                if ( newFileTarget == "" )
+                    ChooseTarget( newFileTarget, false );
+                else
+                    ChooseTarget( newFileTarget, true );
+
+                if ( File.Exists( newFileTarget ) )
+                {
+                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
+                    if ( overwrite )
+                        File.Delete( newFileTarget );
+
+                }
+                else
+                    overwrite = true;
+                if ( !overwrite )
+                    newFileTarget = "";
 
             }
-            return ( false );
+            // craft the 'CREATE TABLE'
+            string tableColumns = "( ";
+            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
+                tableColumns += $"{i} DOUBLE, ";
+            tableColumns += $"{( valuesDouble[0].Length - 1 )} DOUBLE );";
+            string commandCreate = $"CREATE TABLE [{newTableName}] " 
+                    + tableColumns;
+            Message.Show( commandCreate );
+            // craft the 'INSERT INTO'
+            string commandColumns = "( ";
+            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
+                commandColumns += $"{i}, ";
+            commandColumns += $"{( valuesDouble[0].Length - 1 )} ) VALUES ( ";
+            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
+                commandColumns += $"@{i}, ";
+            commandColumns += $"@{( valuesDouble[0].Length - 1 )} );";
+            string commandText = $"INSERT INTO [{newTableName}$] "
+                    + commandColumns;
+            Message.Show( commandColumns );
+            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
+            {
+                // the array values need to be a parameter
+                OleDbParameter[] nameParam = new OleDbParameter[ valuesDouble[0].Length ];
+                for ( int i = 0; i < nameParam.Length; i++ )
+                    nameParam[ i ] = new OleDbParameter( $"@{i}", OleDbType.Double );
 
-        }   // end: DialogFileName
+                connection.Open();
+                // create the table
+                OleDbCommand command = new OleDbCommand( commandCreate, connection );
+                command.ExecuteNonQuery();
+                
+                
+                foreach ( double[] row in valuesDouble )
+                {
+                    command.CommandText = commandText;
+                    command.Parameters.Clear();
+
+                    for ( int pos = 0; pos < row.Length; pos++ )
+                    {
+                        nameParam[ pos ].Value = row[ pos ];
+                        command.Parameters.Add( nameParam[ pos ] );
+
+                    }
+
+                    command.ExecuteNonQuery();
+                }
+
+                connection.Close();
+            }
+
+        }   // end: WriteListDoubleToNewTarget
 
     }   // end: OleDBReadString
 

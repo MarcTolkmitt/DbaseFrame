@@ -1,4 +1,19 @@
-﻿// Ignore Spelling: Dbase
+﻿/* ====================================================================
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for Additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+==================================================================== */
 
 using System;
 using System.Collections.Generic;
@@ -21,7 +36,14 @@ namespace DbaseFrame
     /// </summary>
     public partial class ExcelTablesChoice : Window
     {
-        public string[] items = new string[ 3 ] { "Hund", "Katze", "Maus" };
+        /// <summary>
+        /// created on: 22.01.24
+        /// last edit: 29.10.24
+        /// </summary>
+        Version version = new Version( "1.0.2" );
+        /// <summary>
+        /// Chosen table's number
+        /// </summary>
         public int index = -1;
         
         public ExcelTablesChoice( string[] dataStrings )

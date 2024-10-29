@@ -25,6 +25,9 @@
                     Click="_mItemExcelListStringArray_Click" />
                 <MenuItem x:Name="_mItemExcelListDoubleArray"
                     Header="read the chosen table as List of double[]" Click="_mItemExcelListDoubleArray_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemWriteListDoubleToExcel" Click="_mItemWriteListDoubleToExcel_Click"
+                          Header="write the read double-list to a new file"/>
             </MenuItem>
             
         </Menu>

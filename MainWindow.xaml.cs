@@ -18,6 +18,7 @@
 
 // Ignore Spelling: Fwith
 
+using System.Data.OleDb;
 using System.Windows;
 
 namespace DbaseFrame
@@ -194,6 +195,12 @@ namespace DbaseFrame
         private void _mItemReadTables_Click( object sender, RoutedEventArgs e )
         {
             int result = readExcel.ReadTableNames();
+            if ( result == -1 )
+            {
+                Display( "no tabel found or chosen, please try again!" );
+                return;
+
+            }
             Display( $"Chosen table is number { result }" );
             Display( $"Chosen table is {readExcel.sheets[ result ]}" );
 
@@ -259,6 +266,10 @@ namespace DbaseFrame
 
         }   // end: _mItemExcelListDoubleArray_Click
 
+        private void _mItemWriteListDoubleToExcel_Click( object sender, RoutedEventArgs e )
+        {
+            readExcel.WriteListDoubleToNewTarget();
+        }
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame
