@@ -89,3 +89,12 @@ var listRows = rowArray.ToList();
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
 
 https://www.paypal.com/ncp/payment/QBF7E2ZG4J8NU
+
+
+
+## <u>5. affiliate links</u>
+
+New and affordable, BTCMiner a service in the cloud: 
+
+#### https://www.btcminer.vip/21663039
+

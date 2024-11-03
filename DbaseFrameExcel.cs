@@ -44,6 +44,11 @@ namespace DbaseFrame
             "Data Source=";
         string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+        string targetConStringStart =
+            "Provider=Microsoft.ACE.OLEDB.12.0;" +
+            "Data Source=";
+        string targetConStringEnd =
+            ";Extended Properties=\"Excel 12.0 Xml;HDR=YES;\"";
         string connectionString = "";
         string targetConnectionString = "";
         string fileName = "";
@@ -279,25 +284,13 @@ namespace DbaseFrame
         public void ChooseTarget( string file = "", bool silent = true )
         {
             targetFileName = file;
-            /*
-            // Configure save file dialog box
-            var dialog = new Microsoft.Win32.SaveFileDialog();
-            dialog.FileName = "FFN"; // Default file name
-            dialog.DefaultExt = ".network"; // Default file extension
-            dialog.Filter = "network save file (.network)|*.network"; // Filter files by extension
-            dialog.DefaultDirectory = workingDirectory;
 
-            // Show save file dialog box
-            bool? result = dialog.ShowDialog();
-
-
-            */
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameSave( ref targetFileName );
             if ( targetFileName != "" )
                 targetConnectionString =
-                    conStringStart + targetFileName + conStringEnd;
+                    targetConStringStart + targetFileName + targetConStringEnd;
             else
                 targetConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
                     "Data Source=" +
@@ -329,7 +322,7 @@ namespace DbaseFrame
                     overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
                     if ( overwrite )
                         File.Delete( newFileTarget );
-
+                        
                 }
                 else
                     overwrite = true;
@@ -342,7 +335,7 @@ namespace DbaseFrame
             for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
                 tableColumns += $"{i} DOUBLE, ";
             tableColumns += $"{( valuesDouble[0].Length - 1 )} DOUBLE );";
-            string commandCreate = $"CREATE TABLE [{newTableName}] " 
+            string commandCreate = $"CREATE TABLE [{newTableName}$] " 
                     + tableColumns;
             Message.Show( commandCreate );
             // craft the 'INSERT INTO'
@@ -353,7 +346,7 @@ namespace DbaseFrame
             for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
                 commandColumns += $"@{i}, ";
             commandColumns += $"@{( valuesDouble[0].Length - 1 )} );";
-            string commandText = $"INSERT INTO [{newTableName}$] "
+            string commandInsert = $"INSERT INTO [{newTableName}$] "
                     + commandColumns;
             Message.Show( commandColumns );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
@@ -371,7 +364,7 @@ namespace DbaseFrame
                 
                 foreach ( double[] row in valuesDouble )
                 {
-                    command.CommandText = commandText;
+                    command.CommandText = commandInsert;
                     command.Parameters.Clear();
 
                     for ( int pos = 0; pos < row.Length; pos++ )
