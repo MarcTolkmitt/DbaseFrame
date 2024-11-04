@@ -84,6 +84,16 @@ var listRows = rowArray.ToList();
 
 => 'listRows' will be a same sized and same looking list like the original.
 
+### <u>2.2 Excel and the header rows</u>
+
+It is said that there is a line 0 being used by Excel for the column names - but it is hidden generally. And there is no real usage for them to be set in Excel by hand. Most people just use line 1 for the header row. This way the driver sees it, too.
+
+Working magic on this OleDb-driver and Entitiy Framework is SQL. <u>But SQL is not able of magic</u>. Thus there is no real intelligent way to find a header row. You just have to query the user for it or set **'HDR = YES;'** or **'HDR = NO;'** in the connection string like you want. Maximum consequence would be the loss of one row of data in reading.
+
+Writing is a different situation, as SQL demands a name for every column in your becoming Excel spreadsheet. So you generally write files with **'HDR = YES;'** option in your connection string.
+
+I personally have enough with pushing an array into an Excel spreadsheet - one table in one file. Always a clean file for the data. If you need more versatility in writing and updating tables in a file ask for it and maybe i can come up with something.
+
 ### <u>4.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.

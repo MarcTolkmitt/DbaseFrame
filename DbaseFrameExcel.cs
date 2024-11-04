@@ -43,12 +43,15 @@ namespace DbaseFrame
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
         string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+            ";Extended Properties=\"Excel 12.0 Xml;";
         string targetConStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
         string targetConStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;HDR=YES;\"";
+            ";Extended Properties=\"Excel 12.0 Xml;";
+        string withHeader = "HDR=YES;\"";
+        string withoutHeader = "HDR=NO;\"";
+        bool useHeader = true;
         string connectionString = "";
         string targetConnectionString = "";
         string fileName = "";
@@ -63,15 +66,22 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public DbaseFrameExcel( string file = "", bool silent = true )
+        public DbaseFrameExcel( string file = "", bool silent = true,  bool doUseHeader = true )
         {
             fileName = file;
+            useHeader = doUseHeader;
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameLoad( ref fileName );
             if ( fileName != "" )
+            {
                 connectionString =
                     conStringStart + fileName + conStringEnd;
+                if ( useHeader )
+                    connectionString += withHeader;
+                else 
+                    connectionString += withoutHeader;
+            }
             else
                 connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
                     "Data Source=" +
@@ -281,7 +291,7 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">already known ?</param>
         /// <param name="silent">use the dialog ?</param>
-        public void ChooseTarget( string file = "", bool silent = true )
+        public void ChooseTarget( ref string file, bool silent = true )
         {
             targetFileName = file;
 
@@ -290,14 +300,18 @@ namespace DbaseFrame
                 ok = DialogFileNameSave( ref targetFileName );
             if ( targetFileName != "" )
                 targetConnectionString =
-                    targetConStringStart + targetFileName + targetConStringEnd;
+                    targetConStringStart + 
+                    targetFileName + 
+                    targetConStringEnd +
+                    withHeader;
             else
                 targetConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
                     "Data Source=" +
                     "C:\\" +
                     "NewTarget.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=yes;\"";
-
+            file = targetFileName;
+            Message.Show( file );
 
         }   // end: ChooseTarget
 
@@ -307,22 +321,28 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newTable" )
+        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
         {
+            if ( valuesDouble.Count < 1 )
+            {   // no data to write
+                Message.Show( "No data to write, abort!" );
+                return;
+            }
+
             bool overwrite = false;
             while ( !overwrite )
             {
                 if ( newFileTarget == "" )
-                    ChooseTarget( newFileTarget, false );
+                    ChooseTarget( ref newFileTarget, false );
                 else
-                    ChooseTarget( newFileTarget, true );
+                    ChooseTarget( ref newFileTarget, true );
 
                 if ( File.Exists( newFileTarget ) )
                 {
                     overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
                     if ( overwrite )
                         File.Delete( newFileTarget );
-                        
+
                 }
                 else
                     overwrite = true;
@@ -330,25 +350,45 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE'
-            string tableColumns = "( ";
-            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
-                tableColumns += $"{i} DOUBLE, ";
-            tableColumns += $"{( valuesDouble[0].Length - 1 )} DOUBLE );";
-            string commandCreate = $"CREATE TABLE [{newTableName}$] " 
-                    + tableColumns;
+            // craft the 'CREATE TABLE' and 'INSERT INTO'
+            int columns =  valuesDouble[0].Length;
+            string tableCreateColumns = "( ";
+            string tableInsertColumns = "( ";
+            switch ( columns )
+            {
+                case 0:
+                    // no data to write
+                    Message.Show( "No data to write, abort!" );
+                    return;
+                    break;
+                case 1:
+                    tableCreateColumns += $"{0} DOUBLE ) ";
+                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
+                    break;
+                case 2:
+                    tableCreateColumns += $"{0} DOUBLE, ";
+                    tableCreateColumns += $"{1} DOUBLE ) ";
+                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
+                    break;
+                default:
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableCreateColumns += $"{i} DOUBLE, ";
+                    tableCreateColumns += $"{( columns - 1 )} DOUBLE );";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"{i}, ";
+                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"@{i}, ";
+                    tableInsertColumns += $"@{( columns - 1 )} );";
+                    break;
+
+            }
+            string commandCreate = $"CREATE TABLE [{newTableName}] " 
+                    + tableCreateColumns;
             Message.Show( commandCreate );
-            // craft the 'INSERT INTO'
-            string commandColumns = "( ";
-            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
-                commandColumns += $"{i}, ";
-            commandColumns += $"{( valuesDouble[0].Length - 1 )} ) VALUES ( ";
-            for ( int i = 0; i < ( valuesDouble[0].Length - 1 ); i++ )
-                commandColumns += $"@{i}, ";
-            commandColumns += $"@{( valuesDouble[0].Length - 1 )} );";
             string commandInsert = $"INSERT INTO [{newTableName}$] "
-                    + commandColumns;
-            Message.Show( commandColumns );
+                    + tableInsertColumns;
+            Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 // the array values need to be a parameter
@@ -360,8 +400,9 @@ namespace DbaseFrame
                 // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
-                
-                
+                connection.Close();
+
+                connection.Open();
                 foreach ( double[] row in valuesDouble )
                 {
                     command.CommandText = commandInsert;
@@ -381,6 +422,93 @@ namespace DbaseFrame
             }
 
         }   // end: WriteListDoubleToNewTarget
+
+        /// <summary>
+        /// Intern data list string will be written into a new 
+        /// Excel file. If not given a name a dialog will query for it.
+        /// </summary>
+        /// <param name="newFileTarget"></param>
+        public void WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        {
+            if ( valuesString.Count < 1 )
+            {   // no data to write
+                Message.Show( "No data to write, abort!" );
+                return;
+            }
+
+            bool overwrite = false;
+            while ( !overwrite )
+            {
+                if ( newFileTarget == "" )
+                    ChooseTarget( ref newFileTarget, false );
+                else
+                    ChooseTarget( ref newFileTarget, true );
+
+                if ( File.Exists( newFileTarget ) )
+                {
+                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
+                    if ( overwrite )
+                        File.Delete( newFileTarget );
+
+                }
+                else
+                    overwrite = true;
+                if ( !overwrite )
+                    newFileTarget = "";
+
+            }
+            // craft the 'CREATE TABLE'
+            string tableCreateColumns = "( ";
+            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
+                tableCreateColumns += $"{i} VARCHAR, ";
+            tableCreateColumns += $"{( valuesString[ 0 ].Length - 1 )} VARCHAR );";
+            string commandCreate = $"CREATE TABLE [{newTableName}] "
+                    + tableCreateColumns;
+            Message.Show( commandCreate );
+            // craft the 'INSERT INTO'
+            string tableInsertColumns = "( ";
+            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
+                tableInsertColumns += $"{i}, ";
+            tableInsertColumns += $"{( valuesString[ 0 ].Length - 1 )} ) VALUES ( ";
+            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
+                tableInsertColumns += $"@{i}, ";
+            tableInsertColumns += $"@{( valuesString[ 0 ].Length - 1 )} );";
+            string commandInsert = $"INSERT INTO [{newTableName}$] "
+                    + tableInsertColumns;
+            Message.Show( commandInsert );
+            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
+            {
+                // the array values need to be a parameter
+                OleDbParameter[] nameParam = new OleDbParameter[ valuesString[0].Length ];
+                for ( int i = 0; i < nameParam.Length; i++ )
+                    nameParam[ i ] = new OleDbParameter( $"@{i}", OleDbType.VarChar );
+
+                connection.Open();
+                // create the table
+                OleDbCommand command = new OleDbCommand( commandCreate, connection );
+                command.ExecuteNonQuery();
+                connection.Close();
+
+                connection.Open();
+                foreach ( string[] row in valuesString )
+                {
+                    command.CommandText = commandInsert;
+                    command.Parameters.Clear();
+
+                    for ( int pos = 0; pos < row.Length; pos++ )
+                    {
+                        nameParam[ pos ].Value = row[ pos ];
+                        command.Parameters.Add( nameParam[ pos ] );
+
+                    }
+
+                    command.ExecuteNonQuery();
+                }
+
+                connection.Close();
+            }
+
+        }   // end: WriteListStringToNewTarget
 
     }   // end: OleDBReadString
 

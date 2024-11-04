@@ -28,6 +28,8 @@
                 <Separator/>
                 <MenuItem x:Name="_mItemWriteListDoubleToExcel" Click="_mItemWriteListDoubleToExcel_Click"
                           Header="write the read double-list to a new file"/>
+                <MenuItem x:Name="_mItemWriteListStringToExcel"
+                          Header="write the read string-list to a new file" Click="_mItemWriteListStringToExcel_Click"/>
             </MenuItem>
             
         </Menu>

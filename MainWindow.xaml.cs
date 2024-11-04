@@ -183,7 +183,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcel_Click( object sender, RoutedEventArgs e )
         {
-            readExcel = new DbaseFrameExcel( "", false );
+            readExcel = new DbaseFrameExcel( "", false, false );
 
         }   // end: _mItemLoadExcel_Click
 
@@ -235,7 +235,7 @@ namespace DbaseFrame
                 Display( ArrayToString( line ) );
             Display( "\nstring list as jagged array:" );
             var rowArray = readExcel.valuesString.ToArray();
-            Display( ArrayJaggedToString( rowArray, true ) );
+            Display( ArrayJaggedToString( rowArray, false ) );
             var listRows = rowArray.ToList();
             Display( "jagged array as list again:" );
             foreach ( string[] line in listRows )
@@ -257,7 +257,7 @@ namespace DbaseFrame
                 Display( ArrayToString( line ) );
             Display( "\ndouble list as jagged array:" );
             var rowArray = readExcel.valuesDouble.ToArray();
-            Display( ArrayJaggedToString( rowArray, true ) );
+            Display( ArrayJaggedToString( rowArray, false ) );
             var listRows = rowArray.ToList();
             Display( "jagged array as list again:" );
             foreach ( double[] line in listRows )
@@ -266,10 +266,28 @@ namespace DbaseFrame
 
         }   // end: _mItemExcelListDoubleArray_Click
 
+        /// <summary>
+        /// handler function -> _mItemWriteListDoubleToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToExcel_Click( object sender, RoutedEventArgs e )
         {
             readExcel.WriteListDoubleToNewTarget();
-        }
+
+        }   // end: _mItemWriteListDoubleToExcel_Click
+
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemWriteListStringToExcel_Click( object sender, RoutedEventArgs e )
+        {
+            readExcel.WriteListStringToNewTarget();
+
+        }   // end: _mItemWriteListStringToExcel_Click
+
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame

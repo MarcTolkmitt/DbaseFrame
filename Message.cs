@@ -32,12 +32,13 @@ namespace DbaseFrame
         public static bool Ask( string text )
         {
             if ( MessageBox.Show(
-                text,
-                "Query",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question ) == MessageBoxResult.Yes )
+                    text,
+                    "Query",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question ) == MessageBoxResult.Yes )
                 return( true );
-            return ( false );
+            else
+                return ( false );
 
         }   // end: Ask
 
