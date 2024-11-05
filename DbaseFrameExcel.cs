@@ -33,10 +33,10 @@ namespace DbaseFrame
     public class DbaseFrameExcel
     {
         /// <summary>
-        /// created on: 22.01.24
-        /// last edit: 29.10.24
+        /// created on: 22.10.24
+        /// last edit: 05.11.24
         /// </summary>
-        Version version = new Version( "1.0.4" );
+        Version version = new Version( "1.0.6" );
 
         // Connect to the Excel file
         string conStringStart =
@@ -216,7 +216,7 @@ namespace DbaseFrame
                     double[] temp = new double[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
                         if ( reader[ pos ].GetType() == typeof( double ) )
-                            temp[ pos ] = reader.GetDouble( pos );
+                            temp[ pos ] = 1.0 * reader.GetDouble( pos );
                     valuesDouble.Add( temp );
 
                 }
@@ -311,7 +311,7 @@ namespace DbaseFrame
                     "NewTarget.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=yes;\"";
             file = targetFileName;
-            Message.Show( file );
+            //Message.Show( file );
 
         }   // end: ChooseTarget
 
@@ -385,17 +385,12 @@ namespace DbaseFrame
             }
             string commandCreate = $"CREATE TABLE [{newTableName}] " 
                     + tableCreateColumns;
-            Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}$] "
+            //Message.Show( commandCreate );
+            string commandInsert = $"INSERT INTO [{newTableName}] "
                     + tableInsertColumns;
-            Message.Show( commandInsert );
+            //Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
-                // the array values need to be a parameter
-                OleDbParameter[] nameParam = new OleDbParameter[ valuesDouble[0].Length ];
-                for ( int i = 0; i < nameParam.Length; i++ )
-                    nameParam[ i ] = new OleDbParameter( $"@{i}", OleDbType.Double );
-
                 connection.Open();
                 // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
@@ -409,11 +404,7 @@ namespace DbaseFrame
                     command.Parameters.Clear();
 
                     for ( int pos = 0; pos < row.Length; pos++ )
-                    {
-                        nameParam[ pos ].Value = row[ pos ];
-                        command.Parameters.Add( nameParam[ pos ] );
-
-                    }
+                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
 
                     command.ExecuteNonQuery();
                 }
@@ -457,32 +448,47 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE'
+            // craft the 'CREATE TABLE' and 'INSERT INTO'
+            int columns =  valuesDouble[0].Length;
             string tableCreateColumns = "( ";
-            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
-                tableCreateColumns += $"{i} VARCHAR, ";
-            tableCreateColumns += $"{( valuesString[ 0 ].Length - 1 )} VARCHAR );";
+            string tableInsertColumns = "( ";
+            switch ( columns )
+            {
+                case 0:
+                    // no data to write
+                    Message.Show( "No data to write, abort!" );
+                    return;
+                    break;
+                case 1:
+                    tableCreateColumns += $"{0} VARCHAR ) ";
+                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
+                    break;
+                case 2:
+                    tableCreateColumns += $"{0} VARCHAR, ";
+                    tableCreateColumns += $"{1} VARCHAR ) ";
+                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
+                    break;
+                default:
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableCreateColumns += $"{i} VARCHAR, ";
+                    tableCreateColumns += $"{( columns - 1 )} VARCHAR );";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"{i}, ";
+                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"@{i}, ";
+                    tableInsertColumns += $"@{( columns - 1 )} );";
+                    break;
+
+            }
             string commandCreate = $"CREATE TABLE [{newTableName}] "
                     + tableCreateColumns;
-            Message.Show( commandCreate );
-            // craft the 'INSERT INTO'
-            string tableInsertColumns = "( ";
-            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
-                tableInsertColumns += $"{i}, ";
-            tableInsertColumns += $"{( valuesString[ 0 ].Length - 1 )} ) VALUES ( ";
-            for ( int i = 0; i < ( valuesString[ 0 ].Length - 1 ); i++ )
-                tableInsertColumns += $"@{i}, ";
-            tableInsertColumns += $"@{( valuesString[ 0 ].Length - 1 )} );";
-            string commandInsert = $"INSERT INTO [{newTableName}$] "
+            //Message.Show( commandCreate );
+            string commandInsert = $"INSERT INTO [{newTableName}] "
                     + tableInsertColumns;
-            Message.Show( commandInsert );
+            //Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
-                // the array values need to be a parameter
-                OleDbParameter[] nameParam = new OleDbParameter[ valuesString[0].Length ];
-                for ( int i = 0; i < nameParam.Length; i++ )
-                    nameParam[ i ] = new OleDbParameter( $"@{i}", OleDbType.VarChar );
-
                 connection.Open();
                 // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
@@ -496,11 +502,7 @@ namespace DbaseFrame
                     command.Parameters.Clear();
 
                     for ( int pos = 0; pos < row.Length; pos++ )
-                    {
-                        nameParam[ pos ].Value = row[ pos ];
-                        command.Parameters.Add( nameParam[ pos ] );
-
-                    }
+                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
 
                     command.ExecuteNonQuery();
                 }

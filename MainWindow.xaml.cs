@@ -29,10 +29,10 @@ namespace DbaseFrame
     public partial class MainWindow : Window
     {
         /// <summary>
-        /// created on: 22.01.24
-        /// last edit: 15.10.24
+        /// created on: 22.10.24
+        /// last edit: 55.11.24
         /// </summary>
-        Version version = new Version( "1.0.3" );
+        Version version = new Version( "1.0.5" );
         DbaseFrameExcel readExcel;
 
         /// <summary>

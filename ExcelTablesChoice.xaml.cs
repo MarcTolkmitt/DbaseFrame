@@ -37,10 +37,10 @@ namespace DbaseFrame
     public partial class ExcelTablesChoice : Window
     {
         /// <summary>
-        /// created on: 22.01.24
-        /// last edit: 29.10.24
+        /// created on: 22.10.24
+        /// last edit: 05.11.24
         /// </summary>
-        Version version = new Version( "1.0.2" );
+        Version version = new Version( "1.0.3" );
         /// <summary>
         /// Chosen table's number
         /// </summary>

@@ -14,6 +14,11 @@ namespace DbaseFrame
     public class Message
     {
         /// <summary>
+        /// created on: 22.10.24
+        /// last edit: 05.11.24
+        /// </summary>
+        Version version = new Version( "1.0.2" );
+        /// <summary>
         /// Shows a 'MessageBox' for convenience.
         /// </summary>
         /// <param name="text"></param>
