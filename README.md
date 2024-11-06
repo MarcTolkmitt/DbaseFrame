@@ -10,7 +10,7 @@ My 'NPOIwrap' is closed for the reason that i believe 'NPOI' is <u>unsafe</u>. W
 
 Starting as example codes for my programs i plan to create classes that handle it all. I know understanding something is meaning you are not needing it - but you use OOPs for that convenience.
 
-## <u>2. Excel file handling with OleDb not good enough</u>
+## <u>2. Excel file handling with OleDb works, but it's not good enough</u>
 
 I will use **'System.Data.OleDb'** that is installed as NuGet package.
 

@@ -1,5 +1,23 @@
-﻿using System;
+﻿/* ====================================================================
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for Additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+==================================================================== */
+
+using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
@@ -13,17 +31,26 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 05.11.24
-        /// last edit: 05.11.24
+        /// last edit: 06.11.24
         /// </summary>
-        Version version = new Version( "1.0.1" );
+        Version version = new Version( "1.0.2" );
 
+       
         string sourceConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
         string sourceConnectionFile = "";
         string sourceConnectionOptions = "";
         string sourceConnectionString = "";
 
+        string targetConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        string targetConnectionFile = "";
+        string targetConnectionOptions = "";
+        string targetConnectionString = "";
+
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
+
+        string[] sheets = new string[1];
+        int sheetNumber = -1;
 
         /// <summary>
         /// Constructor for the class.
@@ -76,39 +103,379 @@ namespace DbaseFrame
             connection.Close();
         }
 
-        public void TableDummy()
+        /// <summary>
+        /// Reads the table's data as anonymous array of
+        /// strings into 'valuesString'.
+        /// </summary>
+        /// <param name="file">filename</param>
+        /// <param name="silent">can use the file dialog</param>
+        public void ReadStringList( )
         {
-
-            // Replace with your Access database file path and table name
-            string tableName = "Table1";
-
-            try
+            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
             {
-                using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+                conn.Open();
+                OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbDataReader reader = command.ExecuteReader();
+                valuesString = new List<string[]>();
+
+                while ( reader.Read() )
                 {
-                    conn.Open();
+                    string[] temp = new string[ reader.FieldCount ];
+                    for ( int pos = 0; pos < reader.FieldCount; pos++ )
+                        temp[ pos ] = 
+                            reader[ pos ].ToString()
+                            ?? string.Empty;
+                    valuesString.Add( temp );
 
-                    OleDbCommand cmd = new OleDbCommand($"SELECT * FROM {tableName}", conn);
-                    OleDbDataReader reader = cmd.ExecuteReader();
+                }
 
-                    while ( reader.Read() )
-                    {
-                        // Access column values
-                        int id = reader.GetInt32(0); // Replace with the actual column index or name
-                        string description = reader.GetString(1);
+            }   // end: using
 
-                        Console.WriteLine( $"ID: {id}, Description: {description}" );
-                    }
+        }   // end: ReadStringList
 
-                    reader.Close();
+        /// <summary>
+        /// Reads the table's data as anonymous array of
+        /// doubles into 'valuesDouble'.
+        /// </summary>
+        /// <param name="file">filename</param>
+        /// <param name="silent">can use the file dialog</param>
+        public void ReadDoubleList( )
+        {
+            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            {
+                conn.Open();
+                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbDataReader reader = command.ExecuteReader();
+                valuesDouble = new List<double[]>();
+
+                while ( reader.Read() )
+                {
+                    double[] temp = new double[ reader.FieldCount ];
+                    for ( int pos = 0; pos < reader.FieldCount; pos++ )
+                        if ( reader[ pos ].GetType() == typeof( double ) )
+                            temp[ pos ] = 1.0 * reader.GetDouble( pos );
+                    valuesDouble.Add( temp );
+
+                }
+
+            }   // end: using
+
+        }   // end: ReadDoubleList
+
+        /// <summary>
+        /// Returns the number of a chosen table. A dialog will open to let you choose from
+        /// the found table names.
+        /// </summary>
+        /// <returns>the number</returns>
+        public int ReadTableNames( )
+        {
+            DataTable dt;
+            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            {
+                conn.Open();
+                dt =
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null )
+                    ?? new DataTable();
+
+            }   // end: using
+
+            if ( dt != null )
+            {
+                sheets = new string[ dt.Rows.Count ];
+
+                for ( int i = 0; i < sheets.Length; i++ )
+                {
+                    sheets[ i ] = 
+                        dt.Rows[ i ][ "TABLE_NAME" ].ToString()
+                        ?? string.Empty;
+
+                }
+
+                DialogTablesChoice choice = new DialogTablesChoice( sheets );
+                sheetNumber = choice.index;
+                return ( sheetNumber );
+
+            }
+            return ( -1 );
+
+        }   // end: ReadTableNames
+
+        /// <summary>
+        /// Direct query for the table name.
+        /// </summary>
+        /// <param name="numTable">number of the sheet</param>
+        /// <returns>the name or 'string.empty'</returns>
+        public string GetTableName( int numTable )
+        {
+            DataTable dt;
+            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            {
+                conn.Open();
+                dt =
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null )
+                    ?? new DataTable();
+
+            }   // end: using
+
+            if (  dt.Rows.Count > numTable )
+            {
+                return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
+            }
+            return ( string.Empty );
+
+        }   // end: GetTableName
+
+        public void ColumnNameDummy()
+        {
+            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            {
+                conn.Open();
+                
+                // Get the schema table for columns
+                
+                DataTable schemaTable = 
+                    conn.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, null )
+                    ?? new DataTable();
+
+                // Iterate through the schema table rows to access column headers (field names)
+                foreach ( DataColumn column in schemaTable.Columns )
+                {
+                    string columnName = column.ColumnName;
+                    // Use the column name as needed
                 }
             }
-            catch ( Exception ex )
+        }
+
+        /// <summary>
+        /// Target file name for the writing is chosen. Produces the
+        /// 'targetConnectionString' for convenience.
+        /// </summary>
+        /// <param name="file">already known ?</param>
+        /// <param name="silent">use the dialog ?</param>
+        public void ChooseTarget( ref string file, bool silent = true )
+        {
+            targetConnectionFile = file;
+
+            bool ok = false;
+            if ( !silent )
+                ok = DialogFileNameSave( ref targetConnectionFile );
+            if ( targetConnectionFile != "" )
             {
-                Console.WriteLine( "Error: " + ex.Message );
+                targetConnectionString =
+                    targetConnectionStart +
+                    targetConnectionFile +
+                    targetConnectionOptions;
+                file = targetConnectionFile;
+            }
+            else
+            {
+                targetConnectionString =
+                    sourceConnectionString +
+                    GetDirectory() +
+                    "newAccess_Test.accdb" +
+                    targetConnectionOptions;
+                file = GetDirectory() + "newAccess_Test.accdb";
+            }
+            targetConnectionFile = file;
+            //Message.Show( file );
+
+        }   // end: ChooseTarget
+
+
+        /// <summary>
+        /// Intern data list double will be written into a new 
+        /// Excel file. If not given a name a dialog will query for it.
+        /// </summary>
+        /// <param name="newFileTarget"></param>
+        public void WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        {
+            if ( valuesDouble.Count < 1 )
+            {   // no data to write
+                Message.Show( "No data to write, abort!" );
+                return;
             }
 
-        }
+            bool overwrite = false;
+            while ( !overwrite )
+            {
+                if ( newFileTarget == "" )
+                    ChooseTarget( ref newFileTarget, false );
+                else
+                    ChooseTarget( ref newFileTarget, true );
+
+                if ( File.Exists( newFileTarget ) )
+                {
+                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
+                    if ( overwrite )
+                        File.Delete( newFileTarget );
+
+                }
+                else
+                    overwrite = true;
+                if ( !overwrite )
+                    newFileTarget = "";
+
+            }
+            // craft the 'CREATE TABLE' and 'INSERT INTO'
+            int columns =  valuesDouble[0].Length;
+            string tableCreateColumns = "( ";
+            string tableInsertColumns = "( ";
+            switch ( columns )
+            {
+                case 0:
+                    // no data to write
+                    Message.Show( "No data to write, abort!" );
+                    return;
+                case 1:
+                    tableCreateColumns += $"{0} DOUBLE ) ";
+                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
+                    break;
+                case 2:
+                    tableCreateColumns += $"{0} DOUBLE, ";
+                    tableCreateColumns += $"{1} DOUBLE ) ";
+                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
+                    break;
+                default:
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableCreateColumns += $"{i} DOUBLE, ";
+                    tableCreateColumns += $"{( columns - 1 )} DOUBLE );";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"{i}, ";
+                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"@{i}, ";
+                    tableInsertColumns += $"@{( columns - 1 )} );";
+                    break;
+
+            }
+            string commandCreate = $"CREATE TABLE [{newTableName}] "
+                    + tableCreateColumns;
+            //Message.Show( commandCreate );
+            string commandInsert = $"INSERT INTO [{newTableName}] "
+                    + tableInsertColumns;
+            //Message.Show( commandInsert );
+            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
+            {
+                connection.Open();
+                // create the table
+                OleDbCommand command = new OleDbCommand( commandCreate, connection );
+                command.ExecuteNonQuery();
+                connection.Close();
+
+                connection.Open();
+                foreach ( double[] row in valuesDouble )
+                {
+                    command.CommandText = commandInsert;
+                    command.Parameters.Clear();
+
+                    for ( int pos = 0; pos < row.Length; pos++ )
+                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+
+                    command.ExecuteNonQuery();
+                }
+
+                connection.Close();
+            }
+
+        }   // end: WriteListDoubleToNewTarget
+
+        /// <summary>
+        /// Intern data list string will be written into a new 
+        /// Excel file. If not given a name a dialog will query for it.
+        /// </summary>
+        /// <param name="newFileTarget"></param>
+        public void WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        {
+            if ( valuesString.Count < 1 )
+            {   // no data to write
+                Message.Show( "No data to write, abort!" );
+                return;
+            }
+
+            bool overwrite = false;
+            while ( !overwrite )
+            {
+                if ( newFileTarget == "" )
+                    ChooseTarget( ref newFileTarget, false );
+                else
+                    ChooseTarget( ref newFileTarget, true );
+
+                if ( File.Exists( newFileTarget ) )
+                {
+                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
+                    if ( overwrite )
+                        File.Delete( newFileTarget );
+
+                }
+                else
+                    overwrite = true;
+                if ( !overwrite )
+                    newFileTarget = "";
+
+            }
+            // craft the 'CREATE TABLE' and 'INSERT INTO'
+            int columns =  valuesDouble[0].Length;
+            string tableCreateColumns = "( ";
+            string tableInsertColumns = "( ";
+            switch ( columns )
+            {
+                case 0:
+                    // no data to write
+                    Message.Show( "No data to write, abort!" );
+                    return;
+                case 1:
+                    tableCreateColumns += $"{0} VARCHAR ) ";
+                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
+                    break;
+                case 2:
+                    tableCreateColumns += $"{0} VARCHAR, ";
+                    tableCreateColumns += $"{1} VARCHAR ) ";
+                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
+                    break;
+                default:
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableCreateColumns += $"{i} VARCHAR, ";
+                    tableCreateColumns += $"{( columns - 1 )} VARCHAR );";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"{i}, ";
+                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
+                    for ( int i = 0; i < ( columns - 1 ); i++ )
+                        tableInsertColumns += $"@{i}, ";
+                    tableInsertColumns += $"@{( columns - 1 )} );";
+                    break;
+
+            }
+            string commandCreate = $"CREATE TABLE [{newTableName}] "
+                    + tableCreateColumns;
+            //Message.Show( commandCreate );
+            string commandInsert = $"INSERT INTO [{newTableName}] "
+                    + tableInsertColumns;
+            //Message.Show( commandInsert );
+            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
+            {
+                connection.Open();
+                // create the table
+                OleDbCommand command = new OleDbCommand( commandCreate, connection );
+                command.ExecuteNonQuery();
+                connection.Close();
+
+                connection.Open();
+                foreach ( string[] row in valuesString )
+                {
+                    command.CommandText = commandInsert;
+                    command.Parameters.Clear();
+
+                    for ( int pos = 0; pos < row.Length; pos++ )
+                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+
+                    command.ExecuteNonQuery();
+                }
+
+                connection.Close();
+            }
+
+        }   // end: WriteListStringToNewTarget
+
         // ------------------------------ helpers
 
         /// <summary>

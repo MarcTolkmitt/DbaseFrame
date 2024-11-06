@@ -32,27 +32,27 @@ using System.Windows.Shapes;
 namespace DbaseFrame
 {
     /// <summary>
-    /// Interactions logic for ExcelTablesChoice.xaml
+    /// Interactions logic for DialogTablesChoice.xaml
     /// </summary>
-    public partial class ExcelTablesChoice : Window
+    public partial class DialogTablesChoice : Window
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 05.11.24
+        /// last edit: 06.11.24
         /// </summary>
-        Version version = new Version( "1.0.3" );
+        Version version = new Version( "1.0.4" );
         /// <summary>
         /// Chosen table's number
         /// </summary>
         public int index = -1;
         
-        public ExcelTablesChoice( string[] dataStrings )
+        public DialogTablesChoice( string[] dataStrings )
         {
             InitializeComponent();
             _listBox.ItemsSource = dataStrings.ToList();
             ShowDialog();
 
-        }   // end: ExcelTablesChoice
+        }   // end: DialogTablesChoice
 
         /// <summary>
         /// handler function -> _button_Click
@@ -66,7 +66,7 @@ namespace DbaseFrame
 
         }   // end: _button_Click
 
-    }   // end: public partial class ExcelTablesChoice
+    }   // end: public partial class DialogTablesChoice
 
 }   // end: namespace DbaseFrame
 

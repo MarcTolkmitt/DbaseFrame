@@ -34,20 +34,15 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 05.11.24
+        /// last edit: 06.11.24
         /// </summary>
-        Version version = new Version( "1.0.6" );
+        Version version = new Version( "1.0.8" );
 
         // Connect to the Excel file
         string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
         string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;";
-        string targetConStringStart =
-            "Provider=Microsoft.ACE.OLEDB.12.0;" +
-            "Data Source=";
-        string targetConStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;";
         string withHeader = "HDR=YES;\"";
         string withoutHeader = "HDR=NO;\"";
@@ -58,7 +53,7 @@ namespace DbaseFrame
         string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
-        public string[] sheets;
+        public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
         /// <summary>
@@ -83,12 +78,16 @@ namespace DbaseFrame
                     connectionString += withoutHeader;
             }
             else
-                connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
-                    "Data Source=" +
-                    "C:\\" +
+            {
+                connectionString =
+                    conStringStart + 
+                    GetDirectory() +
                     "Parable_Demo.xlsx" +
-                    ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+                    conStringEnd +
+                    conStringEnd +
+                    withoutHeader;
 
+            }
 
         }   // end: DbaseFrameExcel ( constructor )
 
@@ -187,7 +186,9 @@ namespace DbaseFrame
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader[ pos ].ToString();
+                        temp[ pos ] = 
+                            reader[ pos ].ToString()
+                            ?? string.Empty;
                     valuesString.Add( temp );
 
                 }
@@ -247,11 +248,13 @@ namespace DbaseFrame
                 
                 for ( int i = 0; i < sheets.Length; i++ )
                 {
-                    sheets[ i ] = ((DataRow)dt.Rows[ i ])[ "TABLE_NAME" ].ToString();
+                    sheets[ i ] = 
+                        dt.Rows[ i ][ "TABLE_NAME" ].ToString()
+                        ?? string.Empty;
                     string hallo = sheets[ i ];
                 }
 
-                ExcelTablesChoice choice = new ExcelTablesChoice( sheets );
+                DialogTablesChoice choice = new DialogTablesChoice( sheets );
                 sheetNumber = choice.index;
                 return( sheetNumber );
 
@@ -279,7 +282,7 @@ namespace DbaseFrame
             if ( ( dt != null )
                 && ( dt.Rows.Count > numTable ) )
             {
-                return ( ( (DataRow)dt.Rows[ numTable ] )[ "TABLE_NAME" ].ToString() );
+                return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
             }
             return( string.Empty );
 
@@ -299,18 +302,25 @@ namespace DbaseFrame
             if ( !silent )
                 ok = DialogFileNameSave( ref targetFileName );
             if ( targetFileName != "" )
+            {
                 targetConnectionString =
-                    targetConStringStart + 
-                    targetFileName + 
-                    targetConStringEnd +
+                    conStringStart +
+                    targetFileName +
+                    conStringEnd +
                     withHeader;
+                file = targetFileName;
+            }
             else
-                targetConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;" +
-                    "Data Source=" +
-                    "C:\\" +
+            {
+                targetConnectionString = 
+                    conStringStart +
+                    GetDirectory() +
                     "NewTarget.xlsx" +
-                    ";Extended Properties=\"Excel 12.0 Xml;HDR=yes;\"";
-            file = targetFileName;
+                    conStringEnd +
+                    withHeader;
+                file = GetDirectory() + "NewTarget.xlsx";
+            }
+            targetFileName = file;
             //Message.Show( file );
 
         }   // end: ChooseTarget
@@ -360,7 +370,6 @@ namespace DbaseFrame
                     // no data to write
                     Message.Show( "No data to write, abort!" );
                     return;
-                    break;
                 case 1:
                     tableCreateColumns += $"{0} DOUBLE ) ";
                     tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
@@ -458,7 +467,6 @@ namespace DbaseFrame
                     // no data to write
                     Message.Show( "No data to write, abort!" );
                     return;
-                    break;
                 case 1:
                     tableCreateColumns += $"{0} VARCHAR ) ";
                     tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
@@ -512,6 +520,6 @@ namespace DbaseFrame
 
         }   // end: WriteListStringToNewTarget
 
-    }   // end: OleDBReadString
+    }   // end: DbaseFrameExcel
 
 }   // end: namespace DbaseFrame
