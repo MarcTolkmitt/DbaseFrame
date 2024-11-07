@@ -31,7 +31,28 @@
                 <MenuItem x:Name="_mItemWriteListStringToExcel"
                           Header="write the read string-list to a new file" Click="_mItemWriteListStringToExcel_Click"/>
             </MenuItem>
-            
+            <MenuItem Header="OleDb Access">
+                <MenuItem x:Name="_mItemAccesLoad"
+                    Header="open Excel file by dialog" Click="_mItemAccesLoad_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemAccessReadTables" 
+                    Header="read the tables" Click="_mItemAccessReadTables_Click"/>
+                <MenuItem x:Name="_mItemAccessReadTableNumber"
+                    Header="read table names by number" Click="_mItemAccessReadTableNumber_Click"/>
+                <MenuItem x:Name="_mItemAccessListStringArray" 
+                    Header="read chosen table as List of string[]" 
+                    Click="_mItemAccessListStringArray_Click" />
+                <MenuItem x:Name="_mItemAccessListDoubleArray"
+                    Header="read the chosen table as List of double[]" 
+                    Click="_mItemAccessListDoubleArray_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemWriteListDoubleToAccess" 
+                    Click="_mItemWriteListDoubleToAccess_Click"
+                    Header="write the read double-list to a new file"/>
+                <MenuItem x:Name="_mItemWriteListStringToAccess"
+                    Header="write the read string-list to a new file" 
+                    Click="_mItemWriteListStringToAccess_Click"/>
+            </MenuItem>
         </Menu>
         
         <ScrollViewer x:Name="textScroll" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" DockPanel.Dock="Top" Margin="10">

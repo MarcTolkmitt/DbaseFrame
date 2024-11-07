@@ -81,28 +81,6 @@ namespace DbaseFrame
 
         }   // end: DbaseFrameAccess ( constructor )
 
-        public void Dummy()
-        {
-
-            // Connection string
-            string connectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\\Path\\To\\Your\\Database.accdb";
-
-            // Create a connection object
-            OleDbConnection connection = new OleDbConnection(connectionString);
-
-            // Open the connection
-            connection.Open();
-
-            // Execute a query to retrieve data
-            OleDbCommand command = new OleDbCommand("SELECT * FROM YourTable", connection);
-            OleDbDataReader reader = command.ExecuteReader();
-
-            // Process the data
-
-            // Close the connection
-            connection.Close();
-        }
-
         /// <summary>
         /// Reads the table's data as anonymous array of
         /// strings into 'valuesString'.

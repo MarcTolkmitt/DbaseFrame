@@ -108,6 +108,14 @@ Writing is a different situation, as SQL demands a name for every column in your
 
 I personally have enough with pushing an array into an Excel spreadsheet - one table in one file. Always a clean file for the data. If you need more versatility in writing and updating tables in a file ask for it and maybe i can come up with something.
 
+### <u>3. Access with OleDb</u>
+
+Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
+
+That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not:
+
+
+
 ### <u>4.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.

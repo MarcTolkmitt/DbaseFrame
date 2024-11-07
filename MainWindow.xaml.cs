@@ -288,6 +288,40 @@ namespace DbaseFrame
 
         }   // end: _mItemWriteListStringToExcel_Click
 
+        private void _mItemAccesLoad_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemAccessReadTables_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemAccessReadTableNumber_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemAccessListStringArray_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemAccessListDoubleArray_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemWriteListDoubleToAccess_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
+
+        private void _mItemWriteListStringToAccess_Click( object sender, RoutedEventArgs e )
+        {
+
+        }
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame
