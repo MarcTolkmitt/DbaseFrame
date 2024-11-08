@@ -33,7 +33,9 @@ namespace DbaseFrame
         /// last edit: 55.11.24
         /// </summary>
         Version version = new Version( "1.0.5" );
-        DbaseFrameExcel readExcel;
+
+        DbaseFrameExcel dbfExcel;
+        DbaseFrameAccess dbfAccess;
 
         /// <summary>
         /// standard constructor
@@ -176,6 +178,8 @@ namespace DbaseFrame
 
         }   // end: MenuQuit_Click
 
+        // ----------------------------------------------   EXCEL OleDb
+
         /// <summary>
         /// handler function -> _mItemLoadExcel_Click
         /// </summary>
@@ -183,7 +187,8 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcel_Click( object sender, RoutedEventArgs e )
         {
-            readExcel = new DbaseFrameExcel( "", false, false );
+            dbfExcel = new DbaseFrameExcel( "", false, false );
+            Display( $"chosen file is {dbfExcel.fileName}" );
 
         }   // end: _mItemLoadExcel_Click
 
@@ -194,7 +199,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemReadTables_Click( object sender, RoutedEventArgs e )
         {
-            int result = readExcel.ReadTableNames();
+            int result = dbfExcel.ReadTableNames();
             if ( result == -1 )
             {
                 Display( "no tabel found or chosen, please try again!" );
@@ -202,7 +207,7 @@ namespace DbaseFrame
 
             }
             Display( $"Chosen table is number { result }" );
-            Display( $"Chosen table is {readExcel.sheets[ result ]}" );
+            Display( $"Chosen table is {dbfExcel.sheets[ result ]}" );
 
         }   // end: _mItemReadTables_Click
 
@@ -215,7 +220,7 @@ namespace DbaseFrame
         {
             for ( int i = 0; i < 10; i++ )
             {
-                string result = readExcel.GetTableName( i );
+                string result = dbfExcel.GetTableName( i );
                 Display( $"Table {i}: {result}" );
 
             }
@@ -229,12 +234,12 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            readExcel.ReadStringList();
+            dbfExcel.ReadStringList();
             Display( "\nthe read data:" );
-            foreach ( string[] line in readExcel.valuesString )
+            foreach ( string[] line in dbfExcel.valuesString )
                 Display( ArrayToString( line ) );
             Display( "\nstring list as jagged array:" );
-            var rowArray = readExcel.valuesString.ToArray();
+            var rowArray = dbfExcel.valuesString.ToArray();
             Display( ArrayJaggedToString( rowArray, false ) );
             var listRows = rowArray.ToList();
             Display( "jagged array as list again:" );
@@ -251,12 +256,12 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
-            readExcel.ReadDoubleList();
+            dbfExcel.ReadDoubleList();
             Display( "\nthe read data:" );
-            foreach ( double[] line in readExcel.valuesDouble )
+            foreach ( double[] line in dbfExcel.valuesDouble )
                 Display( ArrayToString( line ) );
             Display( "\ndouble list as jagged array:" );
-            var rowArray = readExcel.valuesDouble.ToArray();
+            var rowArray = dbfExcel.valuesDouble.ToArray();
             Display( ArrayJaggedToString( rowArray, false ) );
             var listRows = rowArray.ToList();
             Display( "jagged array as list again:" );
@@ -273,7 +278,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToExcel_Click( object sender, RoutedEventArgs e )
         {
-            readExcel.WriteListDoubleToNewTarget();
+            dbfExcel.WriteListDoubleToNewTarget();
 
         }   // end: _mItemWriteListDoubleToExcel_Click
 
@@ -284,40 +289,88 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListStringToExcel_Click( object sender, RoutedEventArgs e )
         {
-            readExcel.WriteListStringToNewTarget();
+            dbfExcel.WriteListStringToNewTarget();
 
         }   // end: _mItemWriteListStringToExcel_Click
 
+        // --------------------------------------------------------------   ACCESS  OleDb
+
+        /// <summary>
+        /// handler function -> _mItemAccesLoad_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemAccesLoad_Click( object sender, RoutedEventArgs e )
         {
+            dbfAccess = new DbaseFrameAccess( "", false );
+            Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
 
-        }
+        }   // end: _mItemAccesLoad_Click
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadTables_Click( object sender, RoutedEventArgs e )
         {
+            int result = dbfAccess.ReadTableNames();
+            if ( result == -1 )
+            {
+                Display( "no tabel found or chosen, please try again!" );
+                return;
+
+            }
+            Display( $"Chosen table is number {result}" );
+            Display( $"Chosen table is {dbfAccess.sheets[ result ]}" );
 
         }
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadTableNumber_Click( object sender, RoutedEventArgs e )
         {
 
         }
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemAccessListStringArray_Click( object sender, RoutedEventArgs e )
         {
 
         }
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemAccessListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
 
         }
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToAccess_Click( object sender, RoutedEventArgs e )
         {
 
         }
 
+        /// <summary>
+        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
         private void _mItemWriteListStringToAccess_Click( object sender, RoutedEventArgs e )
         {
 

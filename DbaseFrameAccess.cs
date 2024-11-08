@@ -35,22 +35,22 @@ namespace DbaseFrame
         /// </summary>
         Version version = new Version( "1.0.2" );
 
-       
-        string sourceConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
-        string sourceConnectionFile = "";
-        string sourceConnectionOptions = "";
-        string sourceConnectionString = "";
 
-        string targetConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
-        string targetConnectionFile = "";
-        string targetConnectionOptions = "";
-        string targetConnectionString = "";
+        public string sourceConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        public string sourceConnectionFile = "";
+        public string sourceConnectionOptions = "";
+        public string sourceConnectionString = "";
+
+        public string targetConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        public string targetConnectionFile = "";
+        public string targetConnectionOptions = "";
+        public string targetConnectionString = "";
 
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
 
-        string[] sheets = new string[1];
-        int sheetNumber = -1;
+        public string[] sheets = new string[1];
+        public int sheetNumber = -1;
 
         /// <summary>
         /// Constructor for the class.
@@ -480,8 +480,8 @@ namespace DbaseFrame
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.OpenFileDialog();
             dialog.FileName = fileName; // Default file name
-            dialog.DefaultExt = ".xlsx"; // Default file extension
-            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultExt = ".accdb"; // Default file extension
+            dialog.Filter = "Access save file (.accdb)|*.accdb"; // Filter files by extension
             dialog.DefaultDirectory = GetDirectory();
 
             // Show open file dialog box
@@ -495,6 +495,7 @@ namespace DbaseFrame
                 return ( true );
 
             }
+            fileName = string.Empty;
             return ( false );
 
         }   // end: DialogFileNameLoad
@@ -509,8 +510,8 @@ namespace DbaseFrame
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
             dialog.FileName = fileName; // Default file name
-            dialog.DefaultExt = ".xlsx"; // Default file extension
-            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultExt = ".accdb"; // Default file extension
+            dialog.Filter = "Access save file (.accdb)|*.accdb"; // Filter files by extension
             dialog.DefaultDirectory = GetDirectory();
 
             // Show open file dialog box

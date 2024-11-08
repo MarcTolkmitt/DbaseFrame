@@ -39,18 +39,18 @@ namespace DbaseFrame
         Version version = new Version( "1.0.8" );
 
         // Connect to the Excel file
-        string conStringStart =
+        public string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
-        string conStringEnd =
+        public string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;";
-        string withHeader = "HDR=YES;\"";
-        string withoutHeader = "HDR=NO;\"";
-        bool useHeader = true;
-        string connectionString = "";
-        string targetConnectionString = "";
-        string fileName = "";
-        string targetFileName = "";
+        public string withHeader = "HDR=YES;\"";
+        public string withoutHeader = "HDR=NO;\"";
+        public bool useHeader = true;
+        public string connectionString = "";
+        public string targetConnectionString = "";
+        public string fileName = "";
+        public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
         public string[] sheets = new string[1];
