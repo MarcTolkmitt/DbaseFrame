@@ -108,25 +108,25 @@ Writing is a different situation, as SQL demands a name for every column in your
 
 I personally have enough with pushing an array into an Excel spreadsheet - one table in one file. Always a clean file for the data. If you need more versatility in writing and updating tables in a file ask for it and maybe i can come up with something.
 
-### <u>3. Access with OleDb</u>
+### <u>3. Access with OleDb is even worse</u>
 
 Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
 
-That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not:
+That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not. But this topic is useless as i could not find a way to read the values in like they are there in the Access file. Writing would be the second step in this setup.
+
+Having checked the connection strings is easy game and tells you that the way of fetching the data ( with a reader or from a data adapter ) doesn't count much. Important would be the data **coming in** and there i can show no results. The data is just not there except the shape of the spreadsheets - the rest is not there, sorry.
+
+I read that Microsoft did drop OleDb years ago and didn't continue to develop it further. But with .NET 8.x it is still there and thus should work. While the shortcut ACE in the drivers name would mean 'Access Connectivity Engine' it is long from working - why do they add it to the system then?
+
+For completeness i let the stuff stay here.
 
 
 
-### <u>4.Donations</u>
+### <u>14.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
 
 https://www.paypal.com/ncp/payment/QBF7E2ZG4J8NU
 
 
-
-## <u>5. affiliate links</u>
-
-New and affordable, BTCMiner a service in the cloud: 
-
-#### https://www.btcminer.vip/21663039
 
