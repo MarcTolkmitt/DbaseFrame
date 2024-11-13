@@ -33,7 +33,7 @@
             </MenuItem>
             <MenuItem Header="OleDb Access">
                 <MenuItem x:Name="_mItemAccesLoad"
-                    Header="open Excel file by dialog" Click="_mItemAccesLoad_Click"/>
+                    Header="open Access file by dialog" Click="_mItemAccesLoad_Click"/>
                 <Separator/>
                 <MenuItem x:Name="_mItemAccessReadTables" 
                     Header="read the tables" Click="_mItemAccessReadTables_Click"/>

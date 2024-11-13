@@ -18,12 +18,14 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 
 namespace DbaseFrame
 {
@@ -35,15 +37,14 @@ namespace DbaseFrame
         /// </summary>
         Version version = new Version( "1.0.2" );
 
-
-        public string sourceConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        public string sourceConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
         public string sourceConnectionFile = "";
-        public string sourceConnectionOptions = "";
+        public string sourceConnectionOptions = ";Persist Security Info=False;";
         public string sourceConnectionString = "";
 
-        public string targetConnectionStart = "\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        public string targetConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
         public string targetConnectionFile = "";
-        public string targetConnectionOptions = "";
+        public string targetConnectionOptions = ";Persist Security Info=False;";
         public string targetConnectionString = "";
 
         public List<string[]> valuesString = new List<string[]>();
@@ -78,7 +79,6 @@ namespace DbaseFrame
                     "Access_Test.accdb" +
                     sourceConnectionOptions;
 
-
         }   // end: DbaseFrameAccess ( constructor )
 
         /// <summary>
@@ -93,20 +93,52 @@ namespace DbaseFrame
             {
                 conn.Open();
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                /*
                 OleDbDataReader reader = command.ExecuteReader();
                 valuesString = new List<string[]>();
 
+                
                 while ( reader.Read() )
                 {
+                    int cols = reader.FieldCount;
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = 
+                        temp[ pos ] =
                             reader[ pos ].ToString()
+                            ?? string.Empty;
+                            //reader.GetString( pos );
+                    valuesString.Add( temp );
+
+                }
+                reader.Close();
+                */
+
+                // -----------------------------
+                OleDbDataAdapter dataAdapter = 
+                    new OleDbDataAdapter($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn );
+
+                // Our "bucket"
+                DataSet ds = new DataSet();
+                // Fill the bucket with the results of the query and give it the name "employees"
+                dataAdapter.Fill( ds, sheets[ sheetNumber ] );
+                // Loop through the rows of the only table in the DataSet
+                // Now keep in mind that the info in a DataSet can contain multiple tables of data and each table has columns and rows like a spreadsheet.
+                // So here we ask it to get the first table (aka Employees) and loop through each DataRow. We use the row to access the column "name" and add that value to the listbox.
+                valuesString = new List<string[]>();
+
+                foreach ( DataRow dataRow in ds.Tables[ 0 ].Rows )
+                {
+                    int cols = dataRow.Table.Columns.Count;
+                    string[] temp = new string[ cols ];
+                    for ( int pos = 0; pos < cols; pos++ )
+                        temp[ pos ] =
+                            dataRow[ pos ].ToString()
                             ?? string.Empty;
                     valuesString.Add( temp );
 
                 }
 
+                conn.Close();
             }   // end: using
 
         }   // end: ReadStringList

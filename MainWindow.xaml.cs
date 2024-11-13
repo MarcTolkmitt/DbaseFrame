@@ -304,7 +304,7 @@ namespace DbaseFrame
         {
             dbfAccess = new DbaseFrameAccess( "", false );
             Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
-
+            Display( $"connection string is {dbfAccess.sourceConnectionString}" );
         }   // end: _mItemAccesLoad_Click
 
         /// <summary>
@@ -333,6 +333,12 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadTableNumber_Click( object sender, RoutedEventArgs e )
         {
+            for ( int i = 0; i < 20; i++ )
+            {
+                string result = dbfAccess.GetTableName( i );
+                Display( $"Table {i}: {result}" );
+
+            }
 
         }
 
@@ -343,6 +349,18 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListStringArray_Click( object sender, RoutedEventArgs e )
         {
+            dbfAccess.ReadDoubleList();
+            Display( "\nthe read data:" );
+            foreach ( double[] line in dbfAccess.valuesDouble )
+                Display( ArrayToString( line ) );
+            Display( "\ndouble list as jagged array:" );
+            var rowArray = dbfAccess.valuesDouble.ToArray();
+            Display( ArrayJaggedToString( rowArray, false ) );
+            var listRows = rowArray.ToList();
+            Display( "jagged array as list again:" );
+            foreach ( double[] line in listRows )
+                Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
 
         }
 
@@ -353,6 +371,18 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
+            dbfAccess.ReadDoubleList();
+            Display( "\nthe read data:" );
+            foreach ( double[] line in dbfAccess.valuesDouble )
+                Display( ArrayToString( line ) );
+            Display( "\ndouble list as jagged array:" );
+            var rowArray = dbfAccess.valuesDouble.ToArray();
+            Display( ArrayJaggedToString( rowArray, false ) );
+            var listRows = rowArray.ToList();
+            Display( "jagged array as list again:" );
+            foreach ( double[] line in listRows )
+                Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
 
         }
 
