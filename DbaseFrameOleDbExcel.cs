@@ -17,69 +17,155 @@
 
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
-using System.Data.OleDb;
-using System.IO;
 using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
+using System.Data.OleDb;
 using System.Windows.Controls;
+using System.IO;
+using System.Net;
+using System.Windows.Media.Animation;
+using System.Configuration;
+using System.Data;
 
 namespace DbaseFrame
 {
-    public class DbaseFrameAccess
+    public class DbaseFrameOleDbExcel
     {
         /// <summary>
-        /// created on: 05.11.24
-        /// last edit: 06.11.24
+        /// created on: 22.10.24
+        /// last edit: 27.11.24
         /// </summary>
-        Version version = new Version( "1.0.2" );
+        Version version = new Version( "1.0.9" );
 
-        public string sourceConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
-        public string sourceConnectionFile = "";
-        public string sourceConnectionOptions = ";Persist Security Info=False;";
-        public string sourceConnectionString = "";
-
-        public string targetConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
-        public string targetConnectionFile = "";
-        public string targetConnectionOptions = ";Persist Security Info=False;";
+        // Connect to the Excel file
+        public string conStringStart =
+            "Provider=Microsoft.ACE.OLEDB.12.0;" +
+            "Data Source=";
+        public string conStringEnd =
+            ";Extended Properties=\"Excel 12.0 Xml;";
+        public string withHeader = "HDR=YES;\"";
+        public string withoutHeader = "HDR=NO;\"";
+        public bool useHeader = true;
+        public string connectionString = "";
         public string targetConnectionString = "";
-
+        public string fileName = "";
+        public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
-
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
         /// <summary>
-        /// Constructor for the class.
+        /// Constructor for the class. 
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public DbaseFrameAccess( string file = "", bool silent = true )
+        public DbaseFrameOleDbExcel( string file = "", bool silent = true,  bool doUseHeader = true )
         {
-            sourceConnectionFile = file;
-
+            fileName = file;
+            useHeader = doUseHeader;
             bool ok = false;
             if ( !silent )
-                ok = DialogFileNameLoad( ref sourceConnectionFile );
-            if ( sourceConnectionFile != "" )
+                ok = DialogFileNameLoad( ref fileName );
+            if ( fileName != "" )
             {
-                sourceConnectionString =
-                    sourceConnectionStart +
-                    sourceConnectionFile +
-                    sourceConnectionOptions;
+                connectionString =
+                    conStringStart + fileName + conStringEnd;
+                if ( useHeader )
+                    connectionString += withHeader;
+                else 
+                    connectionString += withoutHeader;
             }
             else
-                sourceConnectionString =
-                    sourceConnectionStart +
+            {
+                connectionString =
+                    conStringStart + 
                     GetDirectory() +
-                    "Access_Test.accdb" +
-                    sourceConnectionOptions;
+                    "Parable_Demo.xlsx" +
+                    conStringEnd +
+                    conStringEnd +
+                    withoutHeader;
 
-        }   // end: DbaseFrameAccess ( constructor )
+            }
+
+        }   // end: DbaseFrameExcel ( constructor )
+
+        // ------------------------------ helpers
+
+        /// <summary>
+        /// Delivers the working directory with the systems separator
+        /// symbol.
+        /// </summary>
+        /// <returns>working directory...</returns>
+        string GetDirectory( )
+        {
+            string text =
+                Directory.GetCurrentDirectory()
+                + System.IO.Path.DirectorySeparatorChar;
+            return ( text );
+
+        }   // end: GetDirectory
+
+        /// <summary>
+        /// Queries a filename from the user with the standard dialog.
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public bool DialogFileNameLoad( ref string fileName )
+        {
+            // Configure open file dialog box
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.FileName = fileName; // Default file name
+            dialog.DefaultExt = ".xlsx"; // Default file extension
+            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultDirectory = GetDirectory();
+
+            // Show open file dialog box
+            bool? result = dialog.ShowDialog();
+
+            // Process open file dialog box results
+            if ( result == true )
+            {
+                // Open document
+                fileName = dialog.FileName;
+                return ( true );
+
+            }
+            return ( false );
+
+        }   // end: DialogFileNameLoad
+
+        /// <summary>
+        /// Queries a filename from the user with the standard dialog.
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public bool DialogFileNameSave( ref string fileName )
+        {
+            // Configure open file dialog box
+            var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.FileName = fileName; // Default file name
+            dialog.DefaultExt = ".xlsx"; // Default file extension
+            dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
+            dialog.DefaultDirectory = GetDirectory();
+
+            // Show open file dialog box
+            bool? result = dialog.ShowDialog();
+
+            // Process open file dialog box results
+            if ( result == true )
+            {
+                // Open document
+                fileName = dialog.FileName;
+                return ( true );
+
+            }
+            return ( false );
+
+        }   // end: DialogFileNameLoad
+
+        // --------------------------------------------     the routines
 
         /// <summary>
         /// Reads the table's data as anonymous array of
@@ -89,56 +175,24 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                /*
                 OleDbDataReader reader = command.ExecuteReader();
                 valuesString = new List<string[]>();
 
-                
                 while ( reader.Read() )
                 {
-                    int cols = reader.FieldCount;
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] =
+                        temp[ pos ] = 
                             reader[ pos ].ToString()
                             ?? string.Empty;
-                            //reader.GetString( pos );
                     valuesString.Add( temp );
 
                 }
-                reader.Close();
-                */
-
-                // -----------------------------
-                OleDbDataAdapter dataAdapter = 
-                    new OleDbDataAdapter($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn );
-
-                // Our "bucket"
-                DataSet ds = new DataSet();
-                // Fill the bucket with the results of the query and give it the name "employees"
-                dataAdapter.Fill( ds, sheets[ sheetNumber ] );
-                // Loop through the rows of the only table in the DataSet
-                // Now keep in mind that the info in a DataSet can contain multiple tables of data and each table has columns and rows like a spreadsheet.
-                // So here we ask it to get the first table (aka Employees) and loop through each DataRow. We use the row to access the column "name" and add that value to the listbox.
-                valuesString = new List<string[]>();
-
-                foreach ( DataRow dataRow in ds.Tables[ 0 ].Rows )
-                {
-                    int cols = dataRow.Table.Columns.Count;
-                    string[] temp = new string[ cols ];
-                    for ( int pos = 0; pos < cols; pos++ )
-                        temp[ pos ] =
-                            dataRow[ pos ].ToString()
-                            ?? string.Empty;
-                    valuesString.Add( temp );
-
-                }
-
-                conn.Close();
+                
             }   // end: using
 
         }   // end: ReadStringList
@@ -151,7 +205,7 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
@@ -177,36 +231,35 @@ namespace DbaseFrame
         /// the found table names.
         /// </summary>
         /// <returns>the number</returns>
-        public int ReadTableNames( )
+        public int ReadTableNames()
         {
-            DataTable dt;
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            DataTable? dt = null;
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
-                dt =
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null )
-                    ?? new DataTable();
+                dt = 
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
 
             }   // end: using
 
             if ( dt != null )
             {
                 sheets = new string[ dt.Rows.Count ];
-
+                
                 for ( int i = 0; i < sheets.Length; i++ )
                 {
                     sheets[ i ] = 
                         dt.Rows[ i ][ "TABLE_NAME" ].ToString()
                         ?? string.Empty;
-
+                    string hallo = sheets[ i ];
                 }
 
                 DialogTablesChoice choice = new DialogTablesChoice( sheets );
                 sheetNumber = choice.index;
-                return ( sheetNumber );
+                return( sheetNumber );
 
             }
-            return ( -1 );
+            return( -1 );
 
         }   // end: ReadTableNames
 
@@ -217,44 +270,23 @@ namespace DbaseFrame
         /// <returns>the name or 'string.empty'</returns>
         public string GetTableName( int numTable )
         {
-            DataTable dt;
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            DataTable? dt = null;
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
                 conn.Open();
                 dt =
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null )
-                    ?? new DataTable();
+                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
 
             }   // end: using
 
-            if (  dt.Rows.Count > numTable )
+            if ( ( dt != null )
+                && ( dt.Rows.Count > numTable ) )
             {
                 return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
             }
-            return ( string.Empty );
+            return( string.Empty );
 
         }   // end: GetTableName
-
-        public void ColumnNameDummy()
-        {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
-            {
-                conn.Open();
-                
-                // Get the schema table for columns
-                
-                DataTable schemaTable = 
-                    conn.GetOleDbSchemaTable(OleDbSchemaGuid.Columns, null )
-                    ?? new DataTable();
-
-                // Iterate through the schema table rows to access column headers (field names)
-                foreach ( DataColumn column in schemaTable.Columns )
-                {
-                    string columnName = column.ColumnName;
-                    // Use the column name as needed
-                }
-            }
-        }
 
         /// <summary>
         /// Target file name for the writing is chosen. Produces the
@@ -264,29 +296,31 @@ namespace DbaseFrame
         /// <param name="silent">use the dialog ?</param>
         public void ChooseTarget( ref string file, bool silent = true )
         {
-            targetConnectionFile = file;
+            targetFileName = file;
 
             bool ok = false;
             if ( !silent )
-                ok = DialogFileNameSave( ref targetConnectionFile );
-            if ( targetConnectionFile != "" )
+                ok = DialogFileNameSave( ref targetFileName );
+            if ( targetFileName != "" )
             {
                 targetConnectionString =
-                    targetConnectionStart +
-                    targetConnectionFile +
-                    targetConnectionOptions;
-                file = targetConnectionFile;
+                    conStringStart +
+                    targetFileName +
+                    conStringEnd +
+                    withHeader;
+                file = targetFileName;
             }
             else
             {
-                targetConnectionString =
-                    sourceConnectionString +
+                targetConnectionString = 
+                    conStringStart +
                     GetDirectory() +
-                    "newAccess_Test.accdb" +
-                    targetConnectionOptions;
-                file = GetDirectory() + "newAccess_Test.accdb";
+                    "NewTarget.xlsx" +
+                    conStringEnd +
+                    withHeader;
+                file = GetDirectory() + "NewTarget.xlsx";
             }
-            targetConnectionFile = file;
+            targetFileName = file;
             //Message.Show( file );
 
         }   // end: ChooseTarget
@@ -297,7 +331,7 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
         {
             if ( valuesDouble.Count < 1 )
             {   // no data to write
@@ -358,7 +392,7 @@ namespace DbaseFrame
                     break;
 
             }
-            string commandCreate = $"CREATE TABLE [{newTableName}] "
+            string commandCreate = $"CREATE TABLE [{newTableName}] " 
                     + tableCreateColumns;
             //Message.Show( commandCreate );
             string commandInsert = $"INSERT INTO [{newTableName}] "
@@ -486,84 +520,6 @@ namespace DbaseFrame
 
         }   // end: WriteListStringToNewTarget
 
-        // ------------------------------ helpers
-
-        /// <summary>
-        /// Delivers the working directory with the systems separator
-        /// symbol.
-        /// </summary>
-        /// <returns>working directory...</returns>
-        string GetDirectory( )
-        {
-            string text =
-                Directory.GetCurrentDirectory()
-                + System.IO.Path.DirectorySeparatorChar;
-            return ( text );
-
-        }   // end: GetDirectory
-
-        /// <summary>
-        /// Queries a filename from the user with the standard dialog.
-        /// </summary>
-        /// <param name="fileName"></param>
-        /// <returns></returns>
-        public bool DialogFileNameLoad( ref string fileName )
-        {
-            // Configure open file dialog box
-            var dialog = new Microsoft.Win32.OpenFileDialog();
-            dialog.FileName = fileName; // Default file name
-            dialog.DefaultExt = ".accdb"; // Default file extension
-            dialog.Filter = "Access save file (.accdb)|*.accdb"; // Filter files by extension
-            dialog.DefaultDirectory = GetDirectory();
-
-            // Show open file dialog box
-            bool? result = dialog.ShowDialog();
-
-            // Process open file dialog box results
-            if ( result == true )
-            {
-                // Open document
-                fileName = dialog.FileName;
-                return ( true );
-
-            }
-            fileName = string.Empty;
-            return ( false );
-
-        }   // end: DialogFileNameLoad
-
-        /// <summary>
-        /// Queries a filename from the user with the standard dialog.
-        /// </summary>
-        /// <param name="fileName"></param>
-        /// <returns></returns>
-        public bool DialogFileNameSave( ref string fileName )
-        {
-            // Configure open file dialog box
-            var dialog = new Microsoft.Win32.SaveFileDialog();
-            dialog.FileName = fileName; // Default file name
-            dialog.DefaultExt = ".accdb"; // Default file extension
-            dialog.Filter = "Access save file (.accdb)|*.accdb"; // Filter files by extension
-            dialog.DefaultDirectory = GetDirectory();
-
-            // Show open file dialog box
-            bool? result = dialog.ShowDialog();
-
-            // Process open file dialog box results
-            if ( result == true )
-            {
-                // Open document
-                fileName = dialog.FileName;
-                return ( true );
-
-            }
-            return ( false );
-
-        }   // end: DialogFileNameLoad
-
-
-
-    }   // end: public class DbaseFrameAccess
+    }   // end: DbaseFrameExcel
 
 }   // end: namespace DbaseFrame
-

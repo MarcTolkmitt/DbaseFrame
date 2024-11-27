@@ -112,9 +112,13 @@ I personally have enough with pushing an array into an Excel spreadsheet - one t
 
 Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
 
-That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not. But this topic is useless as i could not find a way to read the values in like they are there in the Access file. Writing would be the second step in this setup.
+That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not. But this topic is useless as i could not find a way to read the values in like they are there in the Access file. Writing would be the second step in this setup - but where is my mistake?.
 
-Having checked the connection strings is easy game and tells you that the way of fetching the data ( with a reader or from a data adapter ) doesn't count much. Important would be the data **coming in** and there i can show no results. The data is just not there except the shape of the spreadsheets - the rest is not there, sorry.
+Having checked the connection strings is easy game and tells you that the way of fetching the data ( with a reader or from a data adapter ) doesn't count much. Important would be the data **coming in** and there i can show no results. The data is just not there except the shape of the spreadsheets - hmm.
+
+I found out that my Access version ( from the One-Drive-Abo ) is not taking floating numbers. Even worse my numbers imported from Excel are made to 'string'. This explains why i found only the shape but not the data. **As slow learner** i sure tried to import again and it shows that any fast action is giving me this mistake. Errors that any beginner does: being too fast and trusting where corrected and now the software is reading the data set correctly with '**OleDb**'. That means i have to tell exactly which column has which data type on import and then it works.
+
+That showed up one limitation of Access: you can't change a field type after creating the table. A wrong import locks your whole data set .
 
 I read that Microsoft did drop OleDb years ago and didn't continue to develop it further. But with .NET 8.x it is still there and thus should work. While the shortcut ACE in the drivers name would mean 'Access Connectivity Engine' it is long from working - why do they add it to the system then?
 

@@ -39,6 +39,9 @@
                     Header="read the tables" Click="_mItemAccessReadTables_Click"/>
                 <MenuItem x:Name="_mItemAccessReadTableNumber"
                     Header="read table names by number" Click="_mItemAccessReadTableNumber_Click"/>
+                <MenuItem x:Name="_mItemAccessListTypesArray" 
+                    Header="read chosen table as List of Types"
+                    Click="_mItemAccessListTypesArray_Click"/>
                 <MenuItem x:Name="_mItemAccessListStringArray" 
                     Header="read chosen table as List of string[]" 
                     Click="_mItemAccessListStringArray_Click" />

@@ -34,8 +34,8 @@ namespace DbaseFrame
         /// </summary>
         Version version = new Version( "1.0.5" );
 
-        DbaseFrameExcel dbfExcel;
-        DbaseFrameAccess dbfAccess;
+        DbaseFrameOleDbExcel dbfExcel;
+        DbaseFrameOleDbAccess dbfAccess;
 
         /// <summary>
         /// standard constructor
@@ -187,7 +187,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcel_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel = new DbaseFrameExcel( "", false, false );
+            dbfExcel = new DbaseFrameOleDbExcel( "", false, false );
             Display( $"chosen file is {dbfExcel.fileName}" );
 
         }   // end: _mItemLoadExcel_Click
@@ -302,7 +302,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccesLoad_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess = new DbaseFrameAccess( "", false );
+            dbfAccess = new DbaseFrameOleDbAccess( "", false );
             Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
             Display( $"connection string is {dbfAccess.sourceConnectionString}" );
         }   // end: _mItemAccesLoad_Click
@@ -343,26 +343,40 @@ namespace DbaseFrame
         }
 
         /// <summary>
+        /// handler function -> _mItemAccessListTypesArray_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemAccessListTypesArray_Click( object sender, RoutedEventArgs e )
+        {
+            dbfAccess.ReadTypesList();
+            foreach ( string[] line in dbfAccess.valuesTypes )
+                Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
+
+        }   // end: _mItemAccessListTypesArray_Click
+
+        /// <summary>
         /// handler function -> _mItemWriteListStringToExcel_Click
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess.ReadDoubleList();
+            dbfAccess.ReadStringList();
             Display( "\nthe read data:" );
-            foreach ( double[] line in dbfAccess.valuesDouble )
+            foreach ( string[] line in dbfAccess.valuesString )
                 Display( ArrayToString( line ) );
-            Display( "\ndouble list as jagged array:" );
-            var rowArray = dbfAccess.valuesDouble.ToArray();
+            Display( "\nstring list as jagged array:" );
+            var rowArray = dbfAccess.valuesString.ToArray();
             Display( ArrayJaggedToString( rowArray, false ) );
             var listRows = rowArray.ToList();
             Display( "jagged array as list again:" );
-            foreach ( double[] line in listRows )
+            foreach ( string[] line in listRows )
                 Display( ArrayToString( line ) );
             Display( "\n---------------------------------" );
 
-        }
+        }   // end: _mItemAccessListStringArray_Click
 
         /// <summary>
         /// handler function -> _mItemWriteListStringToExcel_Click
@@ -384,7 +398,7 @@ namespace DbaseFrame
                 Display( ArrayToString( line ) );
             Display( "\n---------------------------------" );
 
-        }
+        }   // end: _mItemAccessListDoubleArray_Click
 
         /// <summary>
         /// handler function -> _mItemWriteListStringToExcel_Click
@@ -405,6 +419,7 @@ namespace DbaseFrame
         {
 
         }
+
     }   // end: class MainWindow
 
 }   // end: namespace DbaseFrame
