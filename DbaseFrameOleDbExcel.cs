@@ -442,7 +442,7 @@ namespace DbaseFrame
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
                 connection.Close();
-                /*
+                
                 connection.Open();
                 foreach ( double[] row in valuesDouble )
                 {
@@ -450,13 +450,14 @@ namespace DbaseFrame
                     command.Parameters.Clear();
 
                     for ( int pos = 0; pos < row.Length; pos++ )
-                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                        command.Parameters.Add( $"@{pos}", OleDbType.Double ).Value = row[ pos ];
 
                     command.ExecuteNonQuery();
                 }
 
                 connection.Close();
-                */
+                
             }
 
         }   // end: WriteListDoubleToNewTarget
