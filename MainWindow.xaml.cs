@@ -228,6 +228,21 @@ namespace DbaseFrame
         }   // end: _mItemReadTableNumber_Click
 
         /// <summary>
+        /// handler function -> _mItemExcelListTypesArray_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemExcelListTypesArray_Click( object sender, RoutedEventArgs e )
+        {
+            dbfExcel.ReadTypesList();
+            foreach ( string[] line in dbfExcel.valuesTypes )
+                Display( ArrayToString( line ) );
+            Display( "\n---------------------------------" );
+
+
+        }   // end: _mItemExcelListTypesArray_Click
+
+        /// <summary>
         /// handler function -> _mItemExcelListStringArray_Click
         /// </summary>
         /// <param name="sender">triggering UI-element</param>

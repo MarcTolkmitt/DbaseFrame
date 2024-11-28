@@ -34,16 +34,16 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 27.11.24
+        /// last edit: 28.11.24
         /// </summary>
-        Version version = new Version( "1.0.9" );
+        Version version = new Version( "1.0.10" );
 
         // Connect to the Excel file
         public string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
         public string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;";
+            ";Extended Properties=\"Excel 12.0 Xml;IMEX=0;";
         public string withHeader = "HDR=YES;\"";
         public string withoutHeader = "HDR=NO;\"";
         public bool useHeader = true;
@@ -53,6 +53,7 @@ namespace DbaseFrame
         public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
+        public List<string[]> valuesTypes = new List<string[]>();
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
@@ -166,6 +167,42 @@ namespace DbaseFrame
         }   // end: DialogFileNameLoad
 
         // --------------------------------------------     the routines
+
+        /// <summary>
+        /// Reads the table's data types as anonymous array of
+        /// strings into 'valuesTypes'.
+        /// </summary>
+        /// <param name="file">filename</param>
+        /// <param name="silent">can use the file dialog</param>
+        public void ReadTypesList( )
+        {
+            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            {
+                conn.Open();
+                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                //*
+                OleDbDataReader reader = command.ExecuteReader();
+                valuesTypes = new List<string[]>();
+
+
+                while ( reader.Read() )
+                {
+                    int cols = reader.FieldCount;
+                    string[] temp = new string[ cols ];
+                    for ( int pos = 0; pos < cols; pos++ )
+                        temp[ pos ] =
+                            reader[ pos ].GetType().ToString()
+                            //reader.GetString( pos )
+                            ?? string.Empty;
+                    valuesTypes.Add( temp );
+
+                }
+                reader.Close();
+                conn.Close();
+
+            }   // end: using
+
+        }   // end: ReadTypesList
 
         /// <summary>
         /// Reads the table's data as anonymous array of
@@ -394,10 +431,10 @@ namespace DbaseFrame
             }
             string commandCreate = $"CREATE TABLE [{newTableName}] " 
                     + tableCreateColumns;
-            //Message.Show( commandCreate );
+            Message.Show( commandCreate );
             string commandInsert = $"INSERT INTO [{newTableName}] "
                     + tableInsertColumns;
-            //Message.Show( commandInsert );
+            Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
@@ -405,7 +442,7 @@ namespace DbaseFrame
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
                 connection.Close();
-
+                /*
                 connection.Open();
                 foreach ( double[] row in valuesDouble )
                 {
@@ -419,6 +456,7 @@ namespace DbaseFrame
                 }
 
                 connection.Close();
+                */
             }
 
         }   // end: WriteListDoubleToNewTarget

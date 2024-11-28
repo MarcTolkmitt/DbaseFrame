@@ -20,6 +20,10 @@
                     Header="read the tables" Click="_mItemReadTables_Click"/>
                 <MenuItem x:Name="_mItemReadTableNumber"
                     Header="read table names by number" Click="_mItemReadTableNumber_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemExcelListTypesArray"
+                    Header="read the chosen table as List of types"
+                    Click="_mItemExcelListTypesArray_Click" />
                 <MenuItem x:Name="_mItemExcelListStringArray" 
                     Header="read chosen table as List of string[]" 
                     Click="_mItemExcelListStringArray_Click" />
@@ -39,6 +43,7 @@
                     Header="read the tables" Click="_mItemAccessReadTables_Click"/>
                 <MenuItem x:Name="_mItemAccessReadTableNumber"
                     Header="read table names by number" Click="_mItemAccessReadTableNumber_Click"/>
+                <Separator/>
                 <MenuItem x:Name="_mItemAccessListTypesArray" 
                     Header="read chosen table as List of Types"
                     Click="_mItemAccessListTypesArray_Click"/>
