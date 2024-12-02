@@ -1,4 +1,4 @@
-available as '**DbaseFrame.1.0.2.nupkg**'.
+available as '**DbaseFrame.1.0.3.nupkg**'.
 
 
 
@@ -71,7 +71,7 @@ I will let this code stay as good example but only for the interest. You could u
 
 An example procedure for testing the class is given here.
 
-1. '**open Excel file by dialog'** lets you choose the right file with the common file dialog. If you want to change it you choose again. Any operation afterwards uses that chosen Excel file.
+1. '**open Excel file by dialog ( no headers )/( with headers )'** lets you choose the right file with the common file dialog. If you want to change it you choose again. Any operation afterwards uses that chosen Excel file.
 2. **'read the tables'** gives you the dialog to choose one of the found table in this file.
 3. **'read table names by number'** show how to query the table's name with a index number.
 4. **'read chosen table as List of string[]'** will read any cell of the table as a 'string'.
@@ -96,7 +96,7 @@ var listRows = rowArray.ToList();
 
 => 'listRows' will be a same sized and same looking list like the original.
 
-The first block of options is hardwired for **'HDR=NO'** while the writing routines use **'HDR=YES'**. Reading the produced file in with this example will show the first row ( the headers ), too.
+The example is presented with an Excel source having no headers while the writing routines use them. Remember to read written files with headers or you will loose one row of data.
 
 ### <u>2.2 Excel and the header rows</u>
 

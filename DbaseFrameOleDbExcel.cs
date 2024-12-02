@@ -34,16 +34,16 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 28.11.24
+        /// last edit: 02.12.24
         /// </summary>
-        Version version = new Version( "1.0.10" );
+        Version version = new Version( "1.0.11" );
 
         // Connect to the Excel file
         public string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
         public string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;IMEX=0;";
+            ";Extended Properties=\"Excel 12.0 Xml;";
         public string withHeader = "HDR=YES;\"";
         public string withoutHeader = "HDR=NO;\"";
         public bool useHeader = true;
@@ -84,7 +84,6 @@ namespace DbaseFrame
                     conStringStart + 
                     GetDirectory() +
                     "Parable_Demo.xlsx" +
-                    conStringEnd +
                     conStringEnd +
                     withoutHeader;
 
@@ -180,10 +179,9 @@ namespace DbaseFrame
             {
                 conn.Open();
                 OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                //*
                 OleDbDataReader reader = command.ExecuteReader();
+                
                 valuesTypes = new List<string[]>();
-
 
                 while ( reader.Read() )
                 {
@@ -192,7 +190,6 @@ namespace DbaseFrame
                     for ( int pos = 0; pos < cols; pos++ )
                         temp[ pos ] =
                             reader[ pos ].GetType().ToString()
-                            //reader.GetString( pos )
                             ?? string.Empty;
                     valuesTypes.Add( temp );
 
@@ -217,6 +214,7 @@ namespace DbaseFrame
                 conn.Open();
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
+                
                 valuesString = new List<string[]>();
 
                 while ( reader.Read() )
@@ -247,6 +245,7 @@ namespace DbaseFrame
                 conn.Open();
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
+                
                 valuesDouble = new List<double[]>();
 
                 while ( reader.Read() )
@@ -254,7 +253,7 @@ namespace DbaseFrame
                     double[] temp = new double[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
                         if ( reader[ pos ].GetType() == typeof( double ) )
-                            temp[ pos ] = 1.0 * reader.GetDouble( pos );
+                            temp[ pos ] = reader.GetDouble( pos );
                     valuesDouble.Add( temp );
 
                 }
@@ -288,7 +287,7 @@ namespace DbaseFrame
                     sheets[ i ] = 
                         dt.Rows[ i ][ "TABLE_NAME" ].ToString()
                         ?? string.Empty;
-                    string hallo = sheets[ i ];
+
                 }
 
                 DialogTablesChoice choice = new DialogTablesChoice( sheets );
@@ -549,7 +548,8 @@ namespace DbaseFrame
                     command.Parameters.Clear();
 
                     for ( int pos = 0; pos < row.Length; pos++ )
-                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                        command.Parameters.Add( $"@{pos}", OleDbType.VarChar ).Value = row[ pos ];
 
                     command.ExecuteNonQuery();
                 }

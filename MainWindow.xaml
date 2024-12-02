@@ -13,8 +13,10 @@
                 <MenuItem Header="_Quit" Click="MenuQuit_Click"/>
             </MenuItem>
             <MenuItem Header="OleDb Excel">
-                <MenuItem x:Name="_mItemLoadExcel"
-                    Header="open Excel file by dialog" Click="_mItemLoadExcel_Click"/>
+                <MenuItem x:Name="_mItemLoadExcelNH"
+                    Header="open Excel file by dialog ( no headers )" Click="_mItemLoadExcelNH_Click"/>
+                <MenuItem x:Name="_mItemLoadExcelWH"
+                    Header="open Excel file by dialog ( with headers )" Click="_mItemLoadExcelWH_Click"/>
                 <Separator/>
                 <MenuItem x:Name="_mItemReadTables" 
                     Header="read the tables" Click="_mItemReadTables_Click"/>

@@ -185,12 +185,24 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
-        private void _mItemLoadExcel_Click( object sender, RoutedEventArgs e )
-        {
+        private void _mItemLoadExcelNH_Click( object sender, RoutedEventArgs e )
+        {   // use dialog for the filename and no headers
             dbfExcel = new DbaseFrameOleDbExcel( "", false, false );
             Display( $"chosen file is {dbfExcel.fileName}" );
 
-        }   // end: _mItemLoadExcel_Click
+        }   // end: _mItemLoadExcelNH_Click
+
+        /// <summary>
+        /// handler function -> _mItemLoadExcel_Click
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemLoadExcelWH_Click( object sender, RoutedEventArgs e )
+        {   // use dialog for the filename and headers
+            dbfExcel = new DbaseFrameOleDbExcel( "", false, true );
+            Display( $"chosen file is {dbfExcel.fileName}" );
+
+        }   // end: _mItemLoadExcelWH_Click
 
         /// <summary>
         /// handler function -> _mItemReadTables_Click
