@@ -77,7 +77,7 @@ An example procedure for testing the class is given here.
 4. **'read chosen table as List of string[]'** will read any cell of the table as a 'string'.
 5. **'read the chosen table as List of double[]'** will read the cells as double if they are of that type or you will see a 0 ( standard initialization ). Good for buffering data in with no exception.
 6. **'write the read double-list into a new file'** will create a new file with the data in it.
-7. **'write the red strin-list into a new file'** will do the same for the read string values.
+7. **'write the read string-list into a new file'** will do the same for the read string values.
 
 The demo is using one instance of the **'DbaseFrameExcel'** class for the whole show. While i use internally lists for the read data you easily can use arrays as they are sort of ambiguous towards each other.
 
