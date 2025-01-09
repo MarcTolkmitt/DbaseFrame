@@ -5,6 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Data.Odbc;
 
 namespace DbaseFrame
 {
@@ -146,7 +147,146 @@ namespace DbaseFrame
             return dataAdapter;
         }
 
+        public void SourcesToAdapter()
+        {
+            // Assumes that customerConnection is a valid SqlConnection object.  
+            // Assumes that orderConnection is a valid OleDbConnection object.  
+            SqlDataAdapter custAdapter = new SqlDataAdapter(
+                "SELECT * FROM dbo.Customers", customerConnection);
+            OleDbDataAdapter ordAdapter = new OleDbDataAdapter(
+                "SELECT * FROM Orders", orderConnection);
 
+            DataSet customerOrders = new DataSet();
+
+            custAdapter.Fill( customerOrders, "Customers" );
+            ordAdapter.Fill( customerOrders, "Orders" );
+
+            DataRelation relation = customerOrders.Relations.Add("CustOrders",
+                customerOrders.Tables["Customers"].Columns["CustomerID"],
+                customerOrders.Tables["Orders"].Columns["CustomerID"]);
+
+            foreach ( DataRow pRow in customerOrders.Tables[ "Customers" ].Rows )
+            {
+                Console.WriteLine( pRow[ "CustomerID" ] );
+                foreach ( DataRow cRow in pRow.GetChildRows( relation ) )
+                    Console.WriteLine( "\t" + cRow[ "OrderID" ] );
+            }
+
+        }
+
+        public static SqlDataAdapter CreateSqlDataAdapter( SqlConnection connection )
+        {
+            SqlDataAdapter adapter = new()
+            {
+                MissingSchemaAction = MissingSchemaAction.AddWithKey,
+
+                    // Create the commands.
+                    SelectCommand = new SqlCommand(
+                        "SELECT CustomerID, CompanyName FROM CUSTOMERS", connection),
+                    InsertCommand = new SqlCommand(
+                        "INSERT INTO Customers (CustomerID, CompanyName) " +
+                        "VALUES (@CustomerID, @CompanyName)", connection),
+                    UpdateCommand = new SqlCommand(
+                        "UPDATE Customers SET CustomerID = @CustomerID, CompanyName = @CompanyName " +
+                        "WHERE CustomerID = @oldCustomerID", connection),
+                    DeleteCommand = new SqlCommand(
+                        "DELETE FROM Customers WHERE CustomerID = @CustomerID", connection)
+
+                };
+
+            // Create the parameters.
+            adapter.InsertCommand.Parameters.Add( "@CustomerID",
+                SqlDbType.Char, 5, "CustomerID" );
+            adapter.InsertCommand.Parameters.Add( "@CompanyName",
+                SqlDbType.VarChar, 40, "CompanyName" );
+
+            adapter.UpdateCommand.Parameters.Add( "@CustomerID",
+                SqlDbType.Char, 5, "CustomerID" );
+            adapter.UpdateCommand.Parameters.Add( "@CompanyName",
+                SqlDbType.VarChar, 40, "CompanyName" );
+            adapter.UpdateCommand.Parameters.Add( "@oldCustomerID",
+                SqlDbType.Char, 5, "CustomerID" ).SourceVersion =
+                DataRowVersion.Original;
+
+            adapter.DeleteCommand.Parameters.Add( "@CustomerID",
+                SqlDbType.Char, 5, "CustomerID" ).SourceVersion =
+                DataRowVersion.Original;
+
+            return adapter;
+        }
+
+        public void TheSameForOdbcAndOledb()
+        {
+            string selectSQL =
+                "SELECT CustomerID, CompanyName FROM Customers " +
+                "WHERE CountryRegion = ? AND City = ?";
+            string insertSQL =
+                "INSERT INTO Customers (CustomerID, CompanyName) " +
+                "VALUES (?, ?)";
+            string updateSQL =
+                "UPDATE Customers SET CustomerID = ?, CompanyName = ? " +
+                "WHERE CustomerID = ? ";
+            string deleteSQL = "DELETE FROM Customers WHERE CustomerID = ?";
+        }
+
+        public void OledbExample()
+        {
+            string selectSQL =
+                "SELECT CustomerID, CompanyName FROM Customers " +
+                "WHERE CountryRegion = ? AND City = ?";
+            string insertSQL =
+                "INSERT INTO Customers (CustomerID, CompanyName) " +
+                "VALUES (?, ?)";
+            string updateSQL =
+                "UPDATE Customers SET CustomerID = ?, CompanyName = ? " +
+                "WHERE CustomerID = ? ";
+            string deleteSQL = "DELETE FROM Customers WHERE CustomerID = ?";
+            // Assumes that connection is a valid OleDbConnection object.  
+            OleDbDataAdapter adapter = new OleDbDataAdapter();
+
+            OleDbCommand selectCMD = new OleDbCommand(selectSQL, connection);
+            adapter.SelectCommand = selectCMD;
+
+            // Add parameters and set values.  
+            selectCMD.Parameters.Add(
+              "@CountryRegion", OleDbType.VarChar, 15 ).Value = "UK";
+            selectCMD.Parameters.Add(
+              "@City", OleDbType.VarChar, 15 ).Value = "London";
+
+            DataSet customers = new DataSet();
+            adapter.Fill( customers, "Customers" );
+
+
+            // odbc example with these sqlStrings
+            // Assumes that connection is a valid OdbcConnection object.  
+            OdbcDataAdapter adapter = new OdbcDataAdapter();
+
+            OdbcCommand selectCMD = new OdbcCommand(selectSQL, connection);
+            adapter.SelectCommand = selectCMD;
+
+            //Add Parameters and set values.  
+            selectCMD.Parameters.Add( "@CountryRegion", OdbcType.VarChar, 15 ).Value = "UK";
+            selectCMD.Parameters.Add( "@City", OdbcType.VarChar, 15 ).Value = "London";
+
+            DataSet customers = new DataSet();
+            adapter.Fill( customers, "Customers" );
+        }
+
+
+        public void FillWithSchema()
+        {
+            // first way
+            var custDataSet = new DataSet();
+
+            custAdapter.FillSchema( custDataSet, SchemaType.Source, "Customers" );
+            custAdapter.Fill( custDataSet, "Customers" );
+            // second way
+            var custDataSet = new DataSet();
+
+            custAdapter.MissingSchemaAction = MissingSchemaAction.AddWithKey;
+            custAdapter.Fill( custDataSet, "Customers" );
+
+        }
 
 
     }
@@ -166,4 +306,21 @@ To impersonate a specific user for all requests, you can specify the userName an
 <system.web>
     <identity impersonate="true" userName="username" password="password"/>
 </system.web>
+
+Column types are created as .NET Framework types according to the tables in Data Type Mappings 
+in ADO.NET. Primary keys are not created unless they exist in the data source and DataAdapter.
+MissingSchemaAction is set to MissingSchemaAction.AddWithKey. 
+If Fill finds that a primary key exists for a table, it will overwrite data in the DataSet 
+with data from the data source for rows where the primary key column values match those 
+of the row returned from the data source.
+
+// Assumes that connection is a valid SqlConnection object.  
+string queryString =
+  "SELECT CustomerID, CompanyName FROM dbo.Customers";  
+SqlDataAdapter adapter = new SqlDataAdapter(queryString, connection);  
+  
+DataSet customers = new DataSet();  
+adapter.Fill(customers, "Customers");
+
+
  */
