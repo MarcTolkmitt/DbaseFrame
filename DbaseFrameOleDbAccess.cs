@@ -212,7 +212,7 @@ namespace DbaseFrame
             {
                 try
                 {
-                    // Your ODBC connection code
+                    // Your OleDb connection code
                     conn.Open();
                     dt =
                         conn.GetSchema( "Tables" )
@@ -220,7 +220,7 @@ namespace DbaseFrame
                     conn.Close() ;
 
                 }
-                catch ( OdbcException ex )
+                catch ( OleDbException ex )
                 {
                     Console.WriteLine( "Error: " + ex.Message );
                     Console.WriteLine( "Error number: " + ex.ErrorCode );
@@ -262,7 +262,7 @@ namespace DbaseFrame
             {
                 try
                 {
-                    // Your ODBC connection code
+                    // Your OleDb connection code
                     conn.Open();
                     dt =
                         conn.GetSchema( "Tables" )
@@ -270,7 +270,7 @@ namespace DbaseFrame
                     conn.Close();
 
                 }
-                catch ( OdbcException ex )
+                catch ( OleDbException ex )
                 {
                     Console.WriteLine( "Error: " + ex.Message );
                     Console.WriteLine( "Error number: " + ex.ErrorCode );
@@ -418,26 +418,44 @@ namespace DbaseFrame
             //Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
-                connection.Open();
-                // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                connection.Close();
-
-                connection.Open();
-                foreach ( double[] row in valuesDouble )
+                try
                 {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
-
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-
+                    connection.Open();
+                    // create the table
                     command.ExecuteNonQuery();
+                    //connection.Close();
+
+                    //connection.Open();
+
+                    foreach ( double[] row in valuesDouble )
+                    {
+                        command.CommandText = commandInsert;
+                        command.Parameters.Clear();
+
+                        for ( int pos = 0; pos < row.Length; pos++ )
+                            command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+
+                        command.ExecuteNonQuery();
+                    }
+
+                    connection.Close();
+
+                }
+                catch ( OleDbException ex )
+                {
+                    Console.WriteLine( "Error: " + ex.Message );
+                    Console.WriteLine( "Error number: " + ex.ErrorCode );
+                    Console.WriteLine( "Error source: " + ex.Source );
+                }
+                finally
+                {
+                    connection.Close();
+
                 }
 
-                connection.Close();
-            }
+
+            }   // end: using ( OleDbConnection connection
 
         }   // end: WriteListDoubleToNewTarget
 
@@ -476,7 +494,7 @@ namespace DbaseFrame
 
             }
             // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
+            int columns =  valuesString[0].Length;
             string tableCreateColumns = "( ";
             string tableInsertColumns = "( ";
             switch ( columns )

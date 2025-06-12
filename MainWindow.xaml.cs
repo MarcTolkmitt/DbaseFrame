@@ -434,8 +434,9 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToAccess_Click( object sender, RoutedEventArgs e )
         {
+            dbfAccess.WriteListDoubleToNewTarget();
 
-        }
+        }   // end: _mItemWriteListDoubleToAccess_Click
 
         /// <summary>
         /// handler function -> _mItemWriteListStringToExcel_Click
@@ -444,8 +445,9 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListStringToAccess_Click( object sender, RoutedEventArgs e )
         {
+            dbfAccess.WriteListStringToNewTarget();
 
-        }
+        }   // end: _mItemWriteListStringToAccess_Click
 
     }   // end: class MainWindow
 
