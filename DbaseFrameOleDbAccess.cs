@@ -34,9 +34,9 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 05.11.24
-        /// last edit: 27.11.24
+        /// last edit: 12.06.25
         /// </summary>
-        Version version = new Version( "1.0.4" );
+        Version version = new Version( "1.0.5" );
         /*
         string connectionString = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};" +
                                  "Dbq=C:\\Path\\To\\Your\\Database.accdb;" +
@@ -153,35 +153,6 @@ namespace DbaseFrame
 
                 }
                 reader.Close();
-                //*/
-                /*
-                // -----------------------------
-                OdbcDataAdapter dataAdapter = 
-                    new OdbcDataAdapter($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn );
-
-                // Our "bucket"
-                DataSet ds = new DataSet();
-                // Fill the bucket with the results of the query and give it the name "employees"
-                dataAdapter.Fill( ds, sheets[ sheetNumber ] );
-                // Loop through the rows of the only table in the DataSet
-                // Now keep in mind that the info in a DataSet can contain multiple tables of data and each table has columns and rows like a spreadsheet.
-                // So here we ask it to get the first table (aka Employees) and loop through each DataRow. We use the row to access the column "name" and add that value to the listbox.
-                valuesString = new List<string[]>();
-
-                foreach ( DataRow dataRow in ds.Tables[ 0 ].Rows )
-                {
-                    int cols = dataRow.Table.Columns.Count;
-                    string[] temp = new string[ cols ];
-                    for ( int pos = 0; pos < cols; pos++ )
-                        temp[ pos ] =
-                            dataRow[ pos ].ToString()
-                            ?? string.Empty;
-                    valuesString.Add( temp );
-
-                }
-
-                conn.Close();
-                */
 
             }   // end: using
 

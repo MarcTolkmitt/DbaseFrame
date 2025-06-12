@@ -34,9 +34,9 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 02.12.24
+        /// last edit: 10.06.25
         /// </summary>
-        Version version = new Version( "1.0.11" );
+        Version version = new Version( "1.0.12" );
 
         // Connect to the Excel file
         public string conStringStart =
@@ -559,6 +559,6 @@ namespace DbaseFrame
 
         }   // end: WriteListStringToNewTarget
 
-    }   // end: DbaseFrameExcel
+    }   // end: DbaseFrameOleDbExcel
 
 }   // end: namespace DbaseFrame
