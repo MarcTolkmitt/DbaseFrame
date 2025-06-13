@@ -27,28 +27,22 @@ using System.Net;
 using System.Windows.Media.Animation;
 using System.Configuration;
 using System.Data;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace DbaseFrame
 {
-    public class DbaseFrameOleDbExcel
+    public class InteropExcel
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 10.06.25
+        /// last edit: 13.06.25
         /// </summary>
-        Version version = new Version( "1.0.12" );
+        Version version = new Version( "1.0.13" );
 
         // Connect to the Excel file
-        public string conStringStart =
-            "Provider=Microsoft.ACE.OLEDB.12.0;" +
-            "Data Source=";
-        public string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;";
-        public string withHeader = "HDR=YES;\"";
-        public string withoutHeader = "HDR=NO;\"";
+        Excel.Application appExcel = new Excel.Application();
+        
         public bool useHeader = true;
-        public string connectionString = "";
-        public string targetConnectionString = "";
         public string fileName = "";
         public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
@@ -62,34 +56,20 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public DbaseFrameOleDbExcel( string file = "", bool silent = true,  bool doUseHeader = true )
+        public InteropExcel( string file = "", bool silent = true,  bool doUseHeader = true )
         {
             fileName = file;
             useHeader = doUseHeader;
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameLoad( ref fileName );
-            if ( fileName != "" )
-            {
-                connectionString =
-                    conStringStart + fileName + conStringEnd;
-                if ( useHeader )
-                    connectionString += withHeader;
-                else 
-                    connectionString += withoutHeader;
-            }
-            else
-            {
-                connectionString =
-                    conStringStart + 
-                    GetDirectory() +
-                    "Parable_Demo.xlsx" +
-                    conStringEnd +
-                    withoutHeader;
+            if ( fileName == "" )
+                fileName = "Parable_Demo.xlsx";
+            // visible Excel ?
+            appExcel.Visible = true;
 
-            }
 
-        }   // end: DbaseFrameExcel ( constructor )
+        }   // end: InteropExcel ( constructor )
 
         // ------------------------------ helpers
 
@@ -559,6 +539,6 @@ namespace DbaseFrame
 
         }   // end: WriteListStringToNewTarget
 
-    }   // end: DbaseFrameOleDbExcel
+    }   // end: InteropExcel
 
 }   // end: namespace DbaseFrame

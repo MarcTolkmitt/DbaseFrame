@@ -6,13 +6,17 @@ available as '**DbaseFrame.1.0.3.nupkg**'.
 
 Project to gain usage of Excel-,Access-  and Sql-data with C#. This project serves as **example WPF-program** and **source** for the **utility classes**.
 
-The start of this library is based upon the wish to read and write Excel **spreadsheets** as **field** or **matrix**. For the low budget i use **OleDb** and **Odbc** first - later the **interop** **with** **Office** will be used.
+The start of this library is based upon the wish to read and write Excel **spreadsheets** as **field** or **matrix**. For the low budget i use **OleDb**  first - later the **interop** **with** **Office** will be used.
 
 My 'NPOIwrap' is closed for the reason that i believe 'NPOI' is <u>unsafe</u>. While debugging one of my programs these add-ons from 'NPOI' couldn't be deleted - they were hooked into the system and where denying their removal that way. You have to wake up to these hacks and move into action. For me it means starting  a new project with good old topics. The book 'C# 12 in a nutshell' claims to be a good source for this ambition ... so here i am today 15. October 2024.
 
 Starting as example codes for my programs i plan to create classes that handle it all. I know understanding something is meaning you are not needing it - but you use OOPs for that convenience.
 
+
+
 ## <u>2. Excel file handling with OleDb works, but it's not good enough</u>
+
+**<u>Only use OleDb for reading!</u>**
 
 I will use **'System.Data.OleDb'** that is installed as NuGet package.
 
@@ -112,13 +116,15 @@ I personally have enough with pushing an array into an Excel spreadsheet - one t
 
 ### <u>3. Access with OleDb is even worse</u>
 
+**<u>Only use OleDb for reading!</u>**
+
 Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
 
 That means the content of the second chapter counts here, too. Leaving the question if the Access data base will take doubles as double or not. But this topic is useless as i could not find a way to read the values in like they are there in the Access file. Writing would be the second step in this setup - but where is my mistake?.
 
 Having checked the connection strings is easy game and tells you that the way of fetching the data ( with a reader or from a data adapter ) doesn't count much. Important would be the data **coming in** and there i can show no results. The data is just not there except the shape of the spreadsheets - hmm.
 
-I found out that my Access version ( from the One-Drive-Abo ) is not taking floating numbers. Even worse my numbers imported from Excel are made to 'string'. This explains why i found only the shape but not the data. **As slow learner** i sure tried to import again and it shows that any fast action is giving me this mistake. Errors that any beginner does: being too fast and trusting where corrected and now the software is reading the data set correctly with '**OleDb**'. That means i have to tell exactly which column has which data type on import and then it works.
+I found out that my Access version ( from the One-Drive-Abo ) is not taking floating numbers. Even worse my numbers imported from Excel are made to 'string'. This explains why i found only the shape but not the data. **As slow learner** i sure tried to import again and it shows that any fast action is giving me this mistake. Errors that any beginner does: being too fast and trusting where corrected and now the software is reading the data set correctly with '**OleDb**'. That means i have to tell exactly which column has which data type on import and then it works. 
 
 That showed up one limitation of Access: you can't change a field type after creating the table. A wrong import locks your whole data set .
 
