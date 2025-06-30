@@ -30,13 +30,13 @@ using System.Data;
 
 namespace DbaseFrame
 {
-    public class DbaseFrameOleDbExcel
+    public class ExcelOleDb
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 02.12.24
+        /// last edit: 30.06.25
         /// </summary>
-        Version version = new Version( "1.0.11" );
+        Version version = new Version( "1.0.13" );
 
         // Connect to the Excel file
         public string conStringStart =
@@ -62,7 +62,7 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public DbaseFrameOleDbExcel( string file = "", bool silent = true,  bool doUseHeader = true )
+        public ExcelOleDb( string file = "", bool silent = true,  bool doUseHeader = true )
         {
             fileName = file;
             useHeader = doUseHeader;
@@ -89,7 +89,7 @@ namespace DbaseFrame
 
             }
 
-        }   // end: DbaseFrameExcel ( constructor )
+        }   // end: ExcelOleDb ( constructor )
 
         // ------------------------------ helpers
 
@@ -559,6 +559,6 @@ namespace DbaseFrame
 
         }   // end: WriteListStringToNewTarget
 
-    }   // end: DbaseFrameExcel
+    }   // end: ExcelOleDb
 
 }   // end: namespace DbaseFrame

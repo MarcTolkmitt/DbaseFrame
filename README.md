@@ -10,7 +10,11 @@ My 'NPOIwrap' is closed for the reason that i believe 'NPOI' is <u>unsafe</u>. W
 
 Starting as example codes for my programs i plan to create classes that handle it all. I know understanding something is meaning you are not needing it - but you use OOPs for that convenience.
 
+**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
+
 ## <u>2. Excel file handling with OleDb works, but it's not good enough</u>
+
+**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
 
 I will use **'System.Data.OleDb'** that is installed as NuGet package.
 
@@ -65,7 +69,7 @@ Very annoying is the fact that written 'doubles' are not recognized as 'doubles'
 
 Second problem for correctness is the produced table from writing is seen in Excel as one table ( good ) but if you read them in with this code two tables are found. The next barrier for the usability of **OleDb**.
 
-I will let this code stay as good example but only for the interest. You could use it as dirty version of data management but i hope for the **OpenXML-SDK**.
+I will let this code stay as good example but only for the interest. You could use it as dirty version of data management but **Interop** there and many people have the Office suite via their OneDrive like i do. 
 
 ## <u>2.1 demoprogram's menu 'OleDb Excel'</u>
 
@@ -109,6 +113,8 @@ Writing is a different situation, as SQL demands a name for every column in your
 I personally have enough with pushing an array into an Excel spreadsheet - one table in one file. Always a clean file for the data. If you need more versatility in writing and updating tables in a file ask for it and maybe i can come up with something.
 
 ### <u>3. Access with OleDb is even worse</u>
+
+**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
 
 Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
 

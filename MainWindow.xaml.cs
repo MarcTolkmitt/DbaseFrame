@@ -34,8 +34,8 @@ namespace DbaseFrame
         /// </summary>
         Version version = new Version( "1.0.5" );
 
-        DbaseFrameOleDbExcel dbfExcel;
-        DbaseFrameOleDbAccess dbfAccess;
+        ExcelOleDb dbfExcel;
+        AccessOleDb dbfAccess;
 
         /// <summary>
         /// standard constructor
@@ -187,7 +187,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcelNH_Click( object sender, RoutedEventArgs e )
         {   // use dialog for the filename and no headers
-            dbfExcel = new DbaseFrameOleDbExcel( "", false, false );
+            dbfExcel = new ExcelOleDb( "", false, false );
             Display( $"chosen file is {dbfExcel.fileName}" );
 
         }   // end: _mItemLoadExcelNH_Click
@@ -199,7 +199,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcelWH_Click( object sender, RoutedEventArgs e )
         {   // use dialog for the filename and headers
-            dbfExcel = new DbaseFrameOleDbExcel( "", false, true );
+            dbfExcel = new ExcelOleDb( "", false, true );
             Display( $"chosen file is {dbfExcel.fileName}" );
 
         }   // end: _mItemLoadExcelWH_Click
@@ -329,7 +329,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccesLoad_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess = new DbaseFrameOleDbAccess( "", false );
+            dbfAccess = new AccessOleDb( "", false );
             Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
             Display( $"connection string is {dbfAccess.sourceConnectionString}" );
         }   // end: _mItemAccesLoad_Click

@@ -30,13 +30,13 @@ using System.Windows.Controls;
 
 namespace DbaseFrame
 {
-    public class DbaseFrameOleDbAccess
+    public class AccessOleDb
     {
         /// <summary>
         /// created on: 05.11.24
-        /// last edit: 27.11.24
+        /// last edit: 30.12.25
         /// </summary>
-        Version version = new Version( "1.0.4" );
+        Version version = new Version( "1.0.5" );
         /*
         string connectionString = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};" +
                                  "Dbq=C:\\Path\\To\\Your\\Database.accdb;" +
@@ -65,7 +65,7 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public DbaseFrameOleDbAccess( string file = "", bool silent = true )
+        public AccessOleDb( string file = "", bool silent = true )
         {
             sourceConnectionFile = file;
 
@@ -86,7 +86,7 @@ namespace DbaseFrame
                     "Access_Test.accdb" +
                     sourceConnectionOptions;
 
-        }   // end: DbaseFrameAccess ( constructor )
+        }   // end: AccessOleDb ( constructor )
 
         /// <summary>
         /// Reads the table's data types as anonymous array of
@@ -644,7 +644,7 @@ namespace DbaseFrame
 
 
 
-    }   // end: public class DbaseFrameAccess
+    }   // end: public class AccessOleDb
 
 }   // end: namespace DbaseFrame
 
