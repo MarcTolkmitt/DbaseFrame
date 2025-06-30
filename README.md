@@ -1,4 +1,4 @@
-available as '**DbaseFrame.1.0.3.nupkg**'.
+available as '**DbaseFrame.1.0.4.nupkg**'.
 
 
 
