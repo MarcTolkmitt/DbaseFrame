@@ -161,11 +161,9 @@ namespace DbaseFrame
         // --------------------------------------------     the routines
 
         /// <summary>
-        /// Reads the table's data types as anonymous array of
+        /// Reads the table's data types as array of
         /// strings into 'valuesTypes'.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
             // die Daten auslesen
