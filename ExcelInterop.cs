@@ -162,7 +162,8 @@ namespace DbaseFrame
 
         /// <summary>
         /// Reads the table's data types as array of
-        /// strings into 'valuesTypes'.
+        /// strings into 'valuesTypes'. Needed for the analysis
+        /// of foreign data.
         /// </summary>
         public void ReadTypesList( )
         {
