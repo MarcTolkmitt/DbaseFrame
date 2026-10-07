@@ -17,16 +17,17 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Data.OleDb;
-using System.Windows.Controls;
-using System.IO;
-using System.Net;
-using System.Windows.Media.Animation;
 using System.Configuration;
 using System.Data;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Reflection.PortableExecutable;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Controls;
+using System.Windows.Media.Animation;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace DbaseFrame
 {
@@ -34,22 +35,18 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 30.06.25
-        /// last edit: 30.06.25
-        /// Now with Visual Studio 2022 pro i can use the Interop library
+        /// last edit: 06.10.26
+        /// Now since Visual Studio Pro i can use the Interop library
         /// </summary>
-        Version version = new Version( "1.0.2" );
+        Version version = new Version( "1.0.3" );
 
-        // Connect to the Excel file
-        public string conStringStart =
-            "Provider=Microsoft.ACE.OLEDB.12.0;" +
-            "Data Source=";
-        public string conStringEnd =
-            ";Extended Properties=\"Excel 12.0 Xml;";
-        public string withHeader = "HDR=YES;\"";
-        public string withoutHeader = "HDR=NO;\"";
+        Microsoft.Office.Interop.Excel.Application excelApp =
+            new Microsoft.Office.Interop.Excel.Application();
+        Microsoft.Office.Interop.Excel.Workbook workbook;
+        Microsoft.Office.Interop.Excel.Worksheet worksheet;
+
+
         public bool useHeader = true;
-        public string connectionString = "";
-        public string targetConnectionString = "";
         public string fileName = "";
         public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
@@ -70,25 +67,6 @@ namespace DbaseFrame
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameLoad( ref fileName );
-            if ( fileName != "" )
-            {
-                connectionString =
-                    conStringStart + fileName + conStringEnd;
-                if ( useHeader )
-                    connectionString += withHeader;
-                else 
-                    connectionString += withoutHeader;
-            }
-            else
-            {
-                connectionString =
-                    conStringStart + 
-                    GetDirectory() +
-                    "Parable_Demo.xlsx" +
-                    conStringEnd +
-                    withoutHeader;
-
-            }
 
         }   // end: ExcelInterop ( constructor )
 
@@ -166,6 +144,20 @@ namespace DbaseFrame
 
         }   // end: DialogFileNameLoad
 
+        public string GetColumnFromNumber( int col )
+        {
+            string colName = "";
+            while ( col > 0 )
+            {
+                int modulo = ( col - 1 ) % 26;
+                colName = Convert.ToChar( 65 + modulo ).ToString() + colName;
+                col = (int)( ( col - modulo ) / 26 );
+            }
+            return ( colName );
+
+        }   // end: GetColumnFromNumber
+
+
         // --------------------------------------------     the routines
 
         /// <summary>
@@ -176,29 +168,34 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
-            {
-                conn.Open();
-                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                OleDbDataReader reader = command.ExecuteReader();
-                
-                valuesTypes = new List<string[]>();
+            // die Daten auslesen
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
 
-                while ( reader.Read() )
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = usedRange.Row;
+            int startCol = usedRange.Column;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesTypes = new List<string[]>();
+
+            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
+            {
+                string[] temp = new string[ colCount ];
+                for ( int colInd = startCol; colInd < endCol; colInd++ )
                 {
-                    int cols = reader.FieldCount;
-                    string[] temp = new string[ cols ];
-                    for ( int pos = 0; pos < cols; pos++ )
-                        temp[ pos ] =
-                            reader[ pos ].GetType().ToString()
+                    string colName = GetColumnFromNumber( colInd );
+                    temp[ colInd - startCol] =
+                        worksheet.Cells[rowInd, colName].GetType().ToString()
                             ?? string.Empty;
                     valuesTypes.Add( temp );
 
-                }
-                reader.Close();
-                conn.Close();
+                }   // end: for ( int colInd
 
-            }   // end: using
+            }   // end: for ( int rowInd
 
         }   // end: ReadTypesList
 

@@ -132,6 +132,28 @@ For completeness i let the stuff stay here.
 
 
 
+### <u>4. Excel Interop</u>
+
+### 
+
+```c#
+using Excel = Microsoft.Office.Interop.Excel;
+```
+
+You need to add the com-type to the dependencies:
+
+​	"Microsoft Excel 16.0 Object Library"
+
+later you can have your fields in the program:
+
+```c#
+        Microsoft.Office.Interop.Excel.Application excelApp = 
+            new Microsoft.Office.Interop.Excel.Application();
+        Microsoft.Office.Interop.Excel.Workbook workbook;
+```
+
+
+
 ### <u>14.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
