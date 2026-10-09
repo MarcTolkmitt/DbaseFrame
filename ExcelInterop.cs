@@ -40,7 +40,7 @@ namespace DbaseFrame
         /// last edit: 09.10.26
         /// Now since Visual Studio Pro i can use the Interop library
         /// </summary>
-        Version version = new Version( "1.0.4" );
+        Version version = new Version( "1.0.5" );
 
         Microsoft.Office.Interop.Excel.Application excelApp;
         Microsoft.Office.Interop.Excel.Workbook workbook;
@@ -49,9 +49,9 @@ namespace DbaseFrame
         public bool useHeader = true;
         public string fileName = "";
         public string targetFileName = "";
-        public List<string[]> valuesString = new List<string[]>();
-        public List<double[]> valuesDouble = new List<double[]>();
-        public List<string[]> valuesTypes = new List<string[]>();
+        public string[,] valuesStringArray;
+        public double[,] valuesDoubleArray;
+        public string[,] valuesTypesArray;
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
@@ -67,6 +67,21 @@ namespace DbaseFrame
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameLoad( ref fileName );
+            try
+            {
+                excelApp =
+                    new Microsoft.Office.Interop.Excel.Application();
+
+            }
+            catch ( COMException comEx )
+            {
+                Console.WriteLine( "Excel-Interop-error: " + comEx.Message );
+            }
+            catch ( Exception ex )
+            {
+                Console.WriteLine( "common error: " + ex.Message );
+            }   // end: try excelApp
+
             // Open document
             try
             {
@@ -85,24 +100,10 @@ namespace DbaseFrame
             catch (Exception ex)
             {
                 Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
-            }
+            }   // end: try workbook
 
             if ( !ok )
                 Console.WriteLine("File dialog error... " );
-            try
-            {
-                excelApp =
-                    new Microsoft.Office.Interop.Excel.Application();
-
-            }
-            catch (COMException comEx)
-            {
-                Console.WriteLine("Excel-Interop-error: " + comEx.Message);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("common error: " + ex.Message);
-            }
 
         }   // end: ExcelInterop ( constructor )
 
@@ -168,26 +169,6 @@ namespace DbaseFrame
             {
                 // Open document
                 fileName = dialog.FileName;
-                try
-                {
-                    // Datei öffnen
-                    workbook = excelApp.Workbooks.Open(
-                        fileName,
-                        ReadOnly: false,
-                        Editable: true
-                    );
-
-                }
-                catch (COMException comEx)
-                {
-                    Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
-                    return (false);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
-                    return (false);
-                }
                 return ( true );
 
             }
@@ -217,28 +198,37 @@ namespace DbaseFrame
             {
                 // Save document
                 fileName = dialog.FileName;
-                try
-                {
-                    workbook.SaveAs(fileName);
-
-                }
-                catch (COMException comEx)
-                {
-                    Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
-                    return (false);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
-                    return (false);
-                }
                 return ( true );
 
             }
             return ( false );
 
-        }   // end: DialogFileNameLoad
+        }   // end: DialogFileNameSave
 
+        /// <summary>
+        /// Target file name for the writing is chosen.
+        /// </summary>
+        /// <param name="file">already known ?</param>
+        /// <param name="silent">use the dialog ?</param>
+        public void ChooseTarget( ref string file, bool silent = true )
+        {
+            bool ok = true;
+            if ( !silent )
+                ok = DialogFileNameSave( ref file );
+            if ( !ok )
+            {
+                file = GetDirectory() + "NewTarget.xlsx";
+            }
+            targetFileName = file;
+            //Message.Show( file );
+
+        }   // end: ChooseTarget
+
+        /// <summary>
+        /// Converts a column number to its corresponding Excel column name.
+        /// </summary>
+        /// <param name="col = number of the column"></param>
+        /// <returns>string: Excel column name</returns>
         public string GetColumnFromNumber( int col )
         {
             string colName = "";
@@ -252,130 +242,144 @@ namespace DbaseFrame
 
         }   // end: GetColumnFromNumber
 
+        /// <summary>
+        /// Converts a list of double arrays to a two-dimensional double array.
+        /// </summary>
+        /// <param name="list">The list of double arrays to convert.</param>
+        /// <param name="array">The resulting two-dimensional double array.</param>
+        public void ConvertListToMultiDimArray( List<double[]> list, out double[,] array )
+        {
+            int rows = list.Count;
+            int cols = list[ 0 ].Length;
+            array = new double[ cols, rows ];
+            for ( int i = 0; i < cols; i++ )
+            {
+                for ( int j = 0; j < rows; j++ )
+                {
+                    array[ i, j ] = list[ j ][ i ];
+                }
+            }
+        }   // end: ConvertListToMultiDimArray
+
+        /// <summary>
+        /// Converts a two-dimensional double array to a list of double arrays.
+        /// </summary>
+        /// <param name="array">The two-dimensional double array to convert.</param>
+        /// <param name="list">The resulting list of double arrays.</param>
+        public void ConvertMultiDimArrayToList( double[,] array, out List<double[]> list )
+        {
+            int rows = array.GetLength( 1 );
+            int cols = array.GetLength( 0 );
+            list = new List<double[]>();
+            for ( int i = 0; i < rows; i++ )
+            {
+                double[] row = new double[ cols ];
+                for ( int j = 0; j < cols; j++ )
+                {
+                    row[ j ] = array[ j, i ];
+                }
+                list.Add( row );
+            }
+        }   // end: ConvertMultiDimArrayToList
 
         // --------------------------------------------     the routines
 
         /// <summary>
-        /// Reads the table's data types as array of
-        /// strings into 'valuesTypes'. Needed for the analysis
-        /// of foreign data.
+        /// Opens a workbook with the given file name. Returns true if successful, false otherwise.
         /// </summary>
-        public void ReadTypesList( )
+        /// <returns>boolean value indicating success or failure</returns>
+        public bool OpenWorkbook()
         {
-            // die Daten auslesen
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
-
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
-
-            int startRow = usedRange.Row;
-            int startCol = usedRange.Column;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
-
-            valuesTypes = new List<string[]>();
-
-            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
+            try
             {
-                string[] temp = new string[ colCount ];
-                for ( int colInd = startCol; colInd < endCol; colInd++ )
-                {
-                    string colName = GetColumnFromNumber( colInd );
-                    temp[ colInd - startCol] =
-                        worksheet.Cells[rowInd, colName].GetType().ToString()
-                            ?? string.Empty;
-                    valuesTypes.Add( temp );
+                // Datei öffnen
+                workbook = excelApp.Workbooks.Open(
+                    fileName,
+                    ReadOnly: false,
+                    Editable: true
+                );
 
-                }   // end: for ( int colInd
+            }
+            catch ( COMException comEx )
+            {
+                Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
+                return ( false );
+            }
+            catch ( Exception ex )
+            {
+                Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
+                return ( false );
+            }   // end: try workbook
+            return ( true );
 
-            }   // end: for ( int rowInd
+        }   // end: OpenWorkbook
 
-        }   // end: ReadTypesList
+        public bool SaveWorkbook( )
+        {
+            try
+            {
+                workbook.Save();
+                return ( true );
+            }
+            catch ( COMException comEx )
+            {
+                Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
+                return ( false );
+            }
+            catch ( Exception ex )
+            {
+                Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
+                return ( false );
+            }   // end: try workbook
+
+        }   // end: SaveWorkbook
 
         /// <summary>
-        /// Reads the table's data as array of
-        /// strings into 'valuesString'.
+        /// Saves the current workbook with a new file name. Returns true if successful, false otherwise.
+        /// On success, updates the internal fileName to the new file name.
         /// </summary>
-        public void ReadStringList( )
+        /// <param name="newFileName"></param>
+        /// <returns>boolean about the success of the operation</returns>
+        public bool SaveWorkbookAs( string newFileName )
         {
-            // die Daten auslesen
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
-
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
-
-            int startRow = usedRange.Row;
-            int startCol = usedRange.Column;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
-
-            valuesString = new List<string[]>();
-
-            for (int rowInd = startRow; rowInd < endRow; rowInd++)
+            try
             {
-                string[] temp = new string[colCount];
-                for (int colInd = startCol; colInd < endCol; colInd++)
-                {
-                    string colName = GetColumnFromNumber(colInd);
-                    temp[colInd - startCol] =
-                        worksheet.Cells[rowInd, colName].ToString()
-                            ?? string.Empty;
-                    valuesString.Add(temp);
+                workbook.SaveAs( newFileName );
+            }
+            catch ( COMException comEx )
+            {
+                Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
+                return ( false );
+            }
+            catch ( Exception ex )
+            {
+                Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
+                return ( false );
+            }   // end: try workbook
 
-                }   // end: for ( int colInd
+            fileName = newFileName;
+            return ( true );
 
-            }   // end: for ( int rowInd
-
-
-        }   // end: ReadStringList
+        }   // end: SaveWorkbookAs
 
         /// <summary>
-        /// Reads the table's data as anonymous array of
-        /// doubles into 'valuesDouble'.
+        /// Empty the current worksheet by clearing all its cells. 
+        /// This method does not delete the worksheet itself, 
+        /// but removes all data and formatting from it.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
-        public void ReadDoubleList( )
+        public void CleanSheet( )
         {
-            // die Daten auslesen
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
             worksheet = excelApp.ActiveSheet.Worksheet;
+            worksheet.Cells.Clear();
 
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
-
-            int startRow = usedRange.Row;
-            int startCol = usedRange.Column;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
-
-            valuesDouble = new List<double[]>();
-
-            for (int rowInd = startRow; rowInd < endRow; rowInd++)
-            {
-                double[] temp = new double[colCount];
-                for (int colInd = startCol; colInd < endCol; colInd++)
-                {
-                    string colName = GetColumnFromNumber(colInd);
-                    if (worksheet.Cells[rowInd, colName].GetType() == typeof(double))
-                        temp[colInd - startCol] =
-                            worksheet.Cells[rowInd, colName];
-                    valuesDouble.Add(temp);
-
-                }   // end: for ( int colInd
-
-            }   // end: for ( int rowInd
-
-        }   // end: ReadDoubleList
+        }   // end: CleanSheet
 
         /// <summary>
-        /// Returns the number of a chosen table. A dialog will open to let you choose from
-        /// the found table names.
+        /// Returns the number of a chosen sheet. A dialog will open to let you choose from
+        /// the found sheet names.
         /// </summary>
         /// <returns>the number</returns>
-        public int ReadTableNames()
+        public int ReadSheetNames( )
         {
             // die Daten auslesen
             Excel.Sheets sheetsList = workbook.Sheets;
@@ -384,93 +388,402 @@ namespace DbaseFrame
             {
                 List<string> locSheets = new List<string>();
                 sheets = new string[ sheetsList.Count ];
-                
+
                 foreach ( Excel.Worksheet locSheet in sheetsList )
                 {
-                    locSheets.Add( locSheet.Name ); 
+                    locSheets.Add( locSheet.Name );
 
                 }
                 sheets = locSheets.ToArray();
 
                 DialogTablesChoice choice = new DialogTablesChoice( sheets );
                 sheetNumber = choice.index;
-                return( sheetNumber );
+                return ( sheetNumber );
 
             }
-            return( -1 );
+            return ( -1 );
 
-        }   // end: ReadTableNames
+        }   // end: ReadSheetNames
 
         /// <summary>
-        /// Direct query for the table name.
+        /// Direct query for the sheet name.
         /// </summary>
         /// <param name="numTable">number of the sheet</param>
         /// <returns>the name or 'string.empty'</returns>
-        public string GetTableName( int numTable )
+        public string GetSheetName( int numTable )
         {
             // die Daten auslesen
             Excel.Sheets sheetsList = workbook.Sheets;
 
-            if ( (sheetsList.Count > 0)
-                && (sheetsList.Count > numTable ) )
+            if ( ( sheetsList.Count > 0 )
+                && ( sheetsList.Count > numTable ) )
             {
-                return (sheetsList[numTable].Name);  
+                return ( sheetsList[ numTable ].Name );
             }
-            return( string.Empty );
+            return ( string.Empty );
 
-        }   // end: GetTableName
+        }   // end: GetSheetName
 
         /// <summary>
-        /// Target file name for the writing is chosen. Produces the
-        /// 'targetConnectionString' for convenience.
+        /// Sets the name of a chosen sheet.
         /// </summary>
-        /// <param name="file">already known ?</param>
-        /// <param name="silent">use the dialog ?</param>
-        public void ChooseTarget( ref string file, bool silent = true )
+        /// <param name="numTable"></param>
+        /// <param name="newName"></param>
+        public void SetSheetName( int numTable, string newName )
         {
-            targetFileName = file;
-
-            bool ok = false;
-            if ( !silent )
-                ok = DialogFileNameSave( ref targetFileName );
-            if ( targetFileName != "" )
+            // die Daten auslesen
+            Excel.Sheets sheetsList = workbook.Sheets;
+            if ( ( sheetsList.Count > 0 )
+                && ( sheetsList.Count > numTable ) )
             {
-                targetConnectionString =
-                    conStringStart +
-                    targetFileName +
-                    conStringEnd +
-                    withHeader;
-                file = targetFileName;
+                sheetsList[ numTable ].Name = newName;
             }
-            else
-            {
-                targetConnectionString = 
-                    conStringStart +
-                    GetDirectory() +
-                    "NewTarget.xlsx" +
-                    conStringEnd +
-                    withHeader;
-                file = GetDirectory() + "NewTarget.xlsx";
-            }
-            targetFileName = file;
-            //Message.Show( file );
 
-        }   // end: ChooseTarget
-
+        }   // end: SetSheetName
 
         /// <summary>
-        /// Intern data list double will be written into a new 
+        /// Creates a new sheet in the workbook.
+        /// </summary>
+        /// <param name="sheetName"></param>
+        /// <returns>the number of the new sheet</returns>
+        public int NewSheet( string sheetName = "" )
+        {
+            Excel.Worksheet newSheet = workbook.Sheets.Add();
+            newSheet.Name = sheetName;
+
+            return ( newSheet.Index );
+
+        }   // end: NewSheet
+
+        /// <summary>
+        /// Reads the table's data types as 2d-array of
+        /// strings into 'valuesTypesArray'. Needed for the analysis
+        /// of foreign data.
+        /// </summary>
+        public void ReadTypes( )
+        {
+            // get the dimensions from Excel and create the array
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = 1;
+            int startCol = 1;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesTypesArray = new string[ colCount, rowCount ];
+
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
+            string yDim1 = startRow.ToString();
+            string yDim2 = rowCount.ToString();
+
+            // a dream would be the next line, but it is not save for input
+            // valuesTypesArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
+
+            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
+            {
+                string temp;
+                for ( int colInd = startCol; colInd < endCol; colInd++ )
+                {
+                    string colName = GetColumnFromNumber( colInd );
+                    // beware: the cell index works like this coming line
+                    temp =
+                        worksheet.Cells[ rowInd, colName].GetType().ToString()
+                            ?? string.Empty;
+
+                    valuesTypesArray[ colInd, rowInd ] =  temp ;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+        }   // end: ReadTypes
+
+        /// <summary>
+        /// Reads the table's data as 2d-array of
+        /// strings into 'valuesStringArray'.
+        /// </summary>
+        public void ReadStrings()
+        {
+            // get the dimensions from Excel and create the array
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = 1;
+            int startCol = 1;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesStringArray = new string[ colCount, rowCount ];
+
+            // a dream would be the next line, but it is not save for input
+            // valuesStringArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
+
+            for ( int rowInd = startRow; rowInd <= endRow; rowInd++)
+            {
+                string temp;
+                for (int colInd = startCol; colInd <= endCol; colInd++)
+                {
+                    string colName = GetColumnFromNumber(colInd);
+                    // beware: the cell index works like this coming line
+                    temp =
+                        worksheet.Cells[rowInd, colName].ToString()
+                            ?? string.Empty;
+
+                    valuesStringArray[ colInd, rowInd ] = temp;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+        }   // end: ReadStrings
+
+        /// <summary>
+        /// Writes the 2d-array to the active sheet.
+        /// Overwrites anything in its way and starts at A1.
+        /// </summary>
+        public void WriteStrings()
+        {
+            // calculate the Excel range to write to
+            int colCount = valuesStringArray.GetLength( 0 );
+            int rowCount = valuesStringArray.GetLength( 1 );
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
+
+        } // end: WriteStrings
+
+        /// <summary>
+        /// Reads a subset of the table's data as a 2D array of strings.
+        /// </summary>
+        /// <param name="startX">upper left X coordinate</param>
+        /// <param name="startY">upper left Y coordinate</param>
+        /// <param name="endX">lower right X coordinate</param>
+        /// <param name="endY">lower right Y coordinate</param>
+        /// <returns>subset of the table's data as a 2D array of strings</returns>
+        public string[,] ReadStrings( int startX, int startY, int endX, int endY )
+        {
+            // get the dimensions from Excel and create the array
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int startRow = startX;
+            int startCol = startY;
+            int endRow = endX;
+            int endCol = endY;
+
+            string[,] locStringArray = new string[ endX - startX + 1, endY - startY + 1 ];
+
+            // a dream would be the next line, but it is not save for input
+            // valuesStringArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
+
+            for ( int rowInd = startRow; rowInd <= endRow; rowInd++ )
+            {
+                string temp;
+                for ( int colInd = startCol; colInd <= endCol; colInd++ )
+                {
+                    string colName = GetColumnFromNumber(colInd);
+                    // beware: the cell index works like this coming line
+                    temp =
+                        worksheet.Cells[ rowInd, colName ].ToString()
+                            ?? string.Empty;
+
+                    locStringArray[ colInd - startX, rowInd - startY ] = temp;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+            return( locStringArray );
+
+        }   // end: ReadStrings
+
+        /// <summary>
+        /// Writes the 2d-array to the active sheet at the specified coordinates.
+        /// Overwrites anything in its way.
+        /// </summary>
+        public void WriteStrings( string[,] dataArray, int startX, int startY )
+        {
+            // calculate the Excel range to write to
+            int colCount = dataArray.GetLength( 0 );
+            int rowCount = dataArray.GetLength( 1 );
+
+            int startCol = startX;
+            int endCol = startCol + colCount - 1;
+            int startRow = startY;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
+
+        } // end: WriteStrings
+
+        /// <summary>
+        /// Reads the table's data as anonymous array of
+        /// doubles into 'valuesDoubleArray'.
+        /// </summary>
+        public void ReadDoubles()
+        {
+            // get the dimensions from Excel and create the array
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = 1;
+            int startCol = 1;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesDoubleArray = new double[ colCount, rowCount ];
+
+            // a dream would be the next line, but it is not save for input
+            // valuesDoubleArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as double[,];
+
+            for (int rowInd = startRow; rowInd <= endRow; rowInd++)
+            {
+                double temp = 0;
+                for (int colInd = startCol; colInd <= endCol; colInd++)
+                {
+                    string colName = GetColumnFromNumber(colInd);
+                    // beware: the cell index works like this coming lines
+                    if ( worksheet.Cells[rowInd, colName].GetType() == typeof(double))
+                        temp =
+                            worksheet.Cells[rowInd, colName];
+
+                    valuesDoubleArray[ colInd, rowInd ] = temp;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+        }   // end: ReadDoubles
+
+        /// <summary>
+        /// Writes the 2d-array to the active sheet.
+        /// Overwrites anything in its way and starts at A1.
+        /// </summary>
+        public void WriteDoubles( )
+        {
+            // calculate the Excel range to write to
+            int colCount = valuesDoubleArray.GetLength( 0 );
+            int rowCount = valuesDoubleArray.GetLength( 1 );
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesDoubleArray;
+
+        } // end: WriteDoubles
+
+        /// <summary>
+        /// Reads a subset of the table's data as a 2D array of doubles.
+        /// </summary>
+        /// <param name="startX">upper left X coordinate</param>
+        /// <param name="startY">upper left Y coordinate</param>
+        /// <param name="endX">lower right X coordinate</param>
+        /// <param name="endY">lower right Y coordinate</param>
+        /// <returns>subset of the table's data as a 2D array of doubles</returns>
+        public double[,] ReadDoubles( int startX, int startY, int endX, int endY )
+        {
+            // get the dimensions from Excel and create the array
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int startRow = startX;
+            int startCol = startY;
+            int endRow = endX;
+            int endCol = endY;
+
+            double[,] locDoubleArray = new double[ endX - startX + 1, endY - startY + 1 ];
+
+            // a dream would be the next line, but it is not save for input
+            // valuesDoubleArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as double[,];
+
+            for ( int rowInd = startRow; rowInd <= endRow; rowInd++ )
+            {
+                double temp = 0;
+                for ( int colInd = startCol; colInd <= endCol; colInd++ )
+                {
+                    string colName = GetColumnFromNumber(colInd);
+                    // beware: the cell index works like this coming line
+                    temp =
+                        worksheet.Cells[ rowInd, colName ]
+                            ?? 0.0;
+
+                    locDoubleArray[ colInd - startX, rowInd - startY ] = temp;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+            return ( locDoubleArray );
+
+        }   // end: ReadDoubles
+
+        /// <summary>
+        /// Writes the 2d-array to the active sheet at the specified coordinates.
+        /// Overwrites anything in its way.
+        /// </summary>
+        public void WriteDoubles( double[,] dataArray, int startX, int startY )
+        {
+            // calculate the Excel range to write to
+            int colCount = dataArray.GetLength( 0 );
+            int rowCount = dataArray.GetLength( 1 );
+
+            int startCol = startX;
+            int endCol = startCol + colCount - 1;
+            int startRow = startY;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
+
+        } // end: WriteDoubles
+
+        /// <summary>
+        /// Intern 2d-array of doubles will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
+        public void WriteDoublesToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
         {
-            if ( valuesDouble.Count < 1 )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return;
-            }
-
             bool overwrite = false;
             while ( !overwrite )
             {
@@ -492,84 +805,38 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} DOUBLE ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} DOUBLE, ";
-                    tableCreateColumns += $"{1} DOUBLE ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} DOUBLE, ";
-                    tableCreateColumns += $"{( columns - 1 )} DOUBLE );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
+            Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
+            newWorkbook.Worksheets[ 1 ].Name = newTableName;
 
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] " 
-                    + tableCreateColumns;
-            Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
-            Message.Show( commandInsert );
-            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
-            {
-                connection.Open();
-                // create the table
-                OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                connection.Close();
-                
-                connection.Open();
-                foreach ( double[] row in valuesDouble )
-                {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
 
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-                        command.Parameters.Add( $"@{pos}", OleDbType.Double ).Value = row[ pos ];
+            // calculate the Excel range to write to
+            int colCount = valuesDoubleArray.GetLength( 0 );
+            int rowCount = valuesDoubleArray.GetLength( 1 );
 
-                    command.ExecuteNonQuery();
-                }
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = 1;
+            int endRow = startRow + rowCount - 1;
 
-                connection.Close();
-                
-            }
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
 
-        }   // end: WriteListDoubleToNewTarget
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesDoubleArray;
+
+            SaveWorkbook();
+
+        }   // end: WriteDoublesToNewTarget
 
         /// <summary>
         /// Intern data list string will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        public void WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
-            if ( valuesString.Count < 1 )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return;
-            }
-
             bool overwrite = false;
             while ( !overwrite )
             {
@@ -591,69 +858,30 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} VARCHAR ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} VARCHAR, ";
-                    tableCreateColumns += $"{1} VARCHAR ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} VARCHAR, ";
-                    tableCreateColumns += $"{( columns - 1 )} VARCHAR );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
+            Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
+            newWorkbook.Worksheets[ 1 ].Name = newTableName;
 
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] "
-                    + tableCreateColumns;
-            //Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
-            //Message.Show( commandInsert );
-            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
-            {
-                connection.Open();
-                // create the table
-                OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                connection.Close();
 
-                connection.Open();
-                foreach ( string[] row in valuesString )
-                {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
+            // calculate the Excel range to write to
+            int colCount = valuesStringArray.GetLength( 0 );
+            int rowCount = valuesStringArray.GetLength( 1 );
 
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-                        command.Parameters.Add( $"@{pos}", OleDbType.VarChar ).Value = row[ pos ];
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = 1;
+            int endRow = startRow + rowCount - 1;
 
-                    command.ExecuteNonQuery();
-                }
+            // die Strings
+            string xDim1 = GetColumnFromNumber( startRow );
+            string xDim2 = GetColumnFromNumber( endRow );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
 
-                connection.Close();
-            }
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
 
-        }   // end: WriteListStringToNewTarget
+            SaveWorkbook();
+
+        }   // end: WriteStringsToNewTarget
 
     }   // end: ExcelInterop
 
