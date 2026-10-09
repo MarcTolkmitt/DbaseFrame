@@ -15,6 +15,7 @@
    limitations under the License.
 ==================================================================== */
 
+using Microsoft.Office.Interop.Excel;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -23,6 +24,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -35,16 +37,14 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 30.06.25
-        /// last edit: 06.10.26
+        /// last edit: 09.10.26
         /// Now since Visual Studio Pro i can use the Interop library
         /// </summary>
-        Version version = new Version( "1.0.3" );
+        Version version = new Version( "1.0.4" );
 
-        Microsoft.Office.Interop.Excel.Application excelApp =
-            new Microsoft.Office.Interop.Excel.Application();
+        Microsoft.Office.Interop.Excel.Application excelApp;
         Microsoft.Office.Interop.Excel.Workbook workbook;
         Microsoft.Office.Interop.Excel.Worksheet worksheet;
-
 
         public bool useHeader = true;
         public string fileName = "";
@@ -67,8 +67,68 @@ namespace DbaseFrame
             bool ok = false;
             if ( !silent )
                 ok = DialogFileNameLoad( ref fileName );
+            // Open document
+            try
+            {
+                // Datei öffnen
+                workbook = excelApp.Workbooks.Open(
+                    fileName,
+                    ReadOnly: false,
+                    Editable: true
+                );
+
+            }
+            catch (COMException comEx)
+            {
+                Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
+            }
+
+            if ( !ok )
+                Console.WriteLine("File dialog error... " );
+            try
+            {
+                excelApp =
+                    new Microsoft.Office.Interop.Excel.Application();
+
+            }
+            catch (COMException comEx)
+            {
+                Console.WriteLine("Excel-Interop-error: " + comEx.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("common error: " + ex.Message);
+            }
 
         }   // end: ExcelInterop ( constructor )
+
+        public void ExcelInteropQuit()
+        {
+            // Optional: Workbook schließen
+            if (workbook != null)
+            {
+                workbook.Close(SaveChanges: true);
+                Marshal.ReleaseComObject(workbook);
+            }
+
+            // Excel beenden
+            if (excelApp != null)
+            {
+                excelApp.Quit();
+                Marshal.ReleaseComObject(excelApp);
+            }
+
+            workbook = null;
+            excelApp = null;
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+        }   // end: ExcelInteropQuit
 
         // ------------------------------ helpers
 
@@ -108,6 +168,26 @@ namespace DbaseFrame
             {
                 // Open document
                 fileName = dialog.FileName;
+                try
+                {
+                    // Datei öffnen
+                    workbook = excelApp.Workbooks.Open(
+                        fileName,
+                        ReadOnly: false,
+                        Editable: true
+                    );
+
+                }
+                catch (COMException comEx)
+                {
+                    Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
+                    return (false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
+                    return (false);
+                }
                 return ( true );
 
             }
@@ -135,8 +215,23 @@ namespace DbaseFrame
             // Process open file dialog box results
             if ( result == true )
             {
-                // Open document
+                // Save document
                 fileName = dialog.FileName;
+                try
+                {
+                    workbook.SaveAs(fileName);
+
+                }
+                catch (COMException comEx)
+                {
+                    Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
+                    return (false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
+                    return (false);
+                }
                 return ( true );
 
             }
@@ -199,33 +294,40 @@ namespace DbaseFrame
         }   // end: ReadTypesList
 
         /// <summary>
-        /// Reads the table's data as anonymous array of
+        /// Reads the table's data as array of
         /// strings into 'valuesString'.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            // die Daten auslesen
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = usedRange.Row;
+            int startCol = usedRange.Column;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesString = new List<string[]>();
+
+            for (int rowInd = startRow; rowInd < endRow; rowInd++)
             {
-                conn.Open();
-                OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                OleDbDataReader reader = command.ExecuteReader();
-                
-                valuesString = new List<string[]>();
-
-                while ( reader.Read() )
+                string[] temp = new string[colCount];
+                for (int colInd = startCol; colInd < endCol; colInd++)
                 {
-                    string[] temp = new string[ reader.FieldCount ];
-                    for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = 
-                            reader[ pos ].ToString()
+                    string colName = GetColumnFromNumber(colInd);
+                    temp[colInd - startCol] =
+                        worksheet.Cells[rowInd, colName].ToString()
                             ?? string.Empty;
-                    valuesString.Add( temp );
+                    valuesString.Add(temp);
 
-                }
-                
-            }   // end: using
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
 
         }   // end: ReadStringList
 
@@ -237,25 +339,34 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            // die Daten auslesen
+            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
+            worksheet = excelApp.ActiveSheet.Worksheet;
+
+            int rowCount = usedRange.Rows.Count;
+            int colCount = usedRange.Columns.Count;
+
+            int startRow = usedRange.Row;
+            int startCol = usedRange.Column;
+            int endRow = startRow + rowCount - 1;
+            int endCol = startCol + colCount - 1;
+
+            valuesDouble = new List<double[]>();
+
+            for (int rowInd = startRow; rowInd < endRow; rowInd++)
             {
-                conn.Open();
-                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                OleDbDataReader reader = command.ExecuteReader();
-                
-                valuesDouble = new List<double[]>();
-
-                while ( reader.Read() )
+                double[] temp = new double[colCount];
+                for (int colInd = startCol; colInd < endCol; colInd++)
                 {
-                    double[] temp = new double[ reader.FieldCount ];
-                    for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        if ( reader[ pos ].GetType() == typeof( double ) )
-                            temp[ pos ] = reader.GetDouble( pos );
-                    valuesDouble.Add( temp );
+                    string colName = GetColumnFromNumber(colInd);
+                    if (worksheet.Cells[rowInd, colName].GetType() == typeof(double))
+                        temp[colInd - startCol] =
+                            worksheet.Cells[rowInd, colName];
+                    valuesDouble.Add(temp);
 
-                }
+                }   // end: for ( int colInd
 
-            }   // end: using
+            }   // end: for ( int rowInd
 
         }   // end: ReadDoubleList
 
@@ -266,26 +377,20 @@ namespace DbaseFrame
         /// <returns>the number</returns>
         public int ReadTableNames()
         {
-            DataTable? dt = null;
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
-            {
-                conn.Open();
-                dt = 
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
+            // die Daten auslesen
+            Excel.Sheets sheetsList = workbook.Sheets;
 
-            }   // end: using
-
-            if ( dt != null )
+            if ( sheetsList.Count > 0 )
             {
-                sheets = new string[ dt.Rows.Count ];
+                List<string> locSheets = new List<string>();
+                sheets = new string[ sheetsList.Count ];
                 
-                for ( int i = 0; i < sheets.Length; i++ )
+                foreach ( Excel.Worksheet locSheet in sheetsList )
                 {
-                    sheets[ i ] = 
-                        dt.Rows[ i ][ "TABLE_NAME" ].ToString()
-                        ?? string.Empty;
+                    locSheets.Add( locSheet.Name ); 
 
                 }
+                sheets = locSheets.ToArray();
 
                 DialogTablesChoice choice = new DialogTablesChoice( sheets );
                 sheetNumber = choice.index;
@@ -303,19 +408,13 @@ namespace DbaseFrame
         /// <returns>the name or 'string.empty'</returns>
         public string GetTableName( int numTable )
         {
-            DataTable? dt = null;
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
-            {
-                conn.Open();
-                dt =
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
+            // die Daten auslesen
+            Excel.Sheets sheetsList = workbook.Sheets;
 
-            }   // end: using
-
-            if ( ( dt != null )
-                && ( dt.Rows.Count > numTable ) )
+            if ( (sheetsList.Count > 0)
+                && (sheetsList.Count > numTable ) )
             {
-                return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
+                return (sheetsList[numTable].Name);  
             }
             return( string.Empty );
 
