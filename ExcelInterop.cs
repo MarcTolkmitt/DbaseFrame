@@ -15,7 +15,6 @@
    limitations under the License.
 ==================================================================== */
 
-using Microsoft.Office.Interop.Excel;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -37,10 +36,10 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 30.06.25
-        /// last edit: 09.10.26
+        /// last edit: 12.10.26
         /// Now since Visual Studio Pro i can use the Interop library
         /// </summary>
-        Version version = new Version( "1.0.5" );
+        Version version = new Version( "1.0.7" );
 
         Microsoft.Office.Interop.Excel.Application excelApp;
         Microsoft.Office.Interop.Excel.Workbook workbook;
@@ -561,11 +560,12 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
+            // send the data
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
 
         } // end: WriteStrings
@@ -631,14 +631,72 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
 
         } // end: WriteStrings
+
+        /// <summary>
+        /// Appends the 2d-array to the active sheet after the last row.
+        /// </summary>
+        /// <param name="dataArray">2d string array</param>
+        public void AppendRowStringMatrix(string[,] dataArray)
+        {
+            // Find last used row
+            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
+            int lastRow = lastCell.Row;
+
+            // calculate the Excel range to write to
+            int colCount = dataArray.GetLength(0);
+            int rowCount = dataArray.GetLength(1);
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = lastRow + 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber(startCol);
+            string xDim2 = GetColumnFromNumber(endCol);
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+
+        } // end: AppendRowStringMatrix
+
+        /// <summary>
+        /// Writes the array to the active sheet after the last row.
+        /// </summary>
+        /// <param name="dataArray">string array</param>
+        public void AppendRowStringField(string[] dataArray)
+        {
+            // Find last used row
+            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
+            int lastRow = lastCell.Row;
+
+            // calculate the Excel range to write to
+            int colCount = dataArray.Length;
+            int rowCount = 1;
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = lastRow + 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber(startCol);
+            string xDim2 = GetColumnFromNumber(endCol);
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+
+        } // end: AppendRowStringField
 
         /// <summary>
         /// Reads the table's data as anonymous array of
@@ -698,8 +756,8 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
@@ -768,14 +826,72 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
 
         } // end: WriteDoubles
+
+        /// <summary>
+        /// Appends the 2d-array to the active sheet after the last row.
+        /// </summary>
+        /// <param name="dataArray">2d double array</param>
+        public void AppendRowDoublesMatrix(double[,] dataArray )
+        {
+            // Find last used row
+            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
+            int lastRow = lastCell.Row;
+
+            // calculate the Excel range to write to
+            int colCount = dataArray.GetLength(0);
+            int rowCount = dataArray.GetLength(1);
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = lastRow + 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber(startCol);
+            string xDim2 = GetColumnFromNumber(endCol);
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+
+        } // end: AppendRowDoublesMatrix
+
+        /// <summary>
+        /// Writes the array to the active sheet after the last row.
+        /// </summary>
+        /// <param name="dataArray">double array</param>
+        public void AppendRowDoublesField(double[] dataArray )
+        {
+            // Find last used row
+            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
+            int lastRow = lastCell.Row;
+
+            // calculate the Excel range to write to
+            int colCount = dataArray.Length;
+            int rowCount = 1;
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = lastRow + 1;
+            int endRow = startRow + rowCount - 1;
+
+            // die Strings
+            string xDim1 = GetColumnFromNumber(startCol);
+            string xDim2 = GetColumnFromNumber(endCol);
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+
+        } // end: AppendRowDoublesField
 
         /// <summary>
         /// Intern 2d-array of doubles will be written into a new 
@@ -819,8 +935,8 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
@@ -872,8 +988,8 @@ namespace DbaseFrame
             int endRow = startRow + rowCount - 1;
 
             // die Strings
-            string xDim1 = GetColumnFromNumber( startRow );
-            string xDim2 = GetColumnFromNumber( endRow );
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 

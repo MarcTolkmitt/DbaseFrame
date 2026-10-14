@@ -134,7 +134,11 @@ For completeness i let the stuff stay here.
 
 ### <u>4. Excel Interop</u>
 
-### 
+With my Visual Studio Pro i am now allowed to use the interop functionality. As i have the One Drive Personal the usage of Office is part of my system. Something to keep in mind wondering about the why i want to use interop exclusively in the future.
+
+Here you can use native c# scripts to reach Office and it does look good. But beware an added 'using ...' can give you an enormous amount of errors. Trying to use the com-classes for office shows that Office must be scripted with a visual language from Microsoft. It starts with the UI's partial class 'MainWindow' derived from 'Window'. Both the Excel and the Word com classes have a 'Window' too, leading to an amount of errors. This problem made me drop the 'using ... '-statement for the interop classes. 
+
+I even think you can't change that decision for any other projects because of the debugger being lazy. Better stay secure and working than ignoring possible mistakes.
 
 ```c#
 using Excel = Microsoft.Office.Interop.Excel;
@@ -150,7 +154,93 @@ later you can have your fields in the program:
         Microsoft.Office.Interop.Excel.Application excelApp = 
             new Microsoft.Office.Interop.Excel.Application();
         Microsoft.Office.Interop.Excel.Workbook workbook;
+		Microsoft.Office.Interop.Excel.Worksheet worksheet;
 ```
+
+### <u>4.1 my inplementation</u>
+
+... is prepared differently than the former parts of this project. 
+
+Because i can use this without the ugly SQL-strings i just went to a different organisation of the class.
+
+The bigger part works on a chosen or given workbook - the second smaller part just stores data in a new one.
+
+There is no try/catch-block in the functions as you only need it at the beginning opening the file and afterwards:
+
+```c#
+            try
+            {
+                // Datei öffnen
+                workbook = excelApp.Workbooks.Open(
+                    fileName,
+                    ReadOnly: false,
+                    Editable: true
+                );
+
+            }
+            catch ( COMException comEx )
+            {
+                Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
+                return ( false );
+            }
+            catch ( Exception ex )
+            {
+                Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
+                return ( false );
+            }   // end: try workbook
+            return ( true );
+
+```
+
+Like before you can read the contents of the excel file as type-, string- or double into the classes internal fields but this time i use 2d arrays. For the safety every cell needs to be checked if the type is the correct one:
+
+```c#
+            // a dream would be the next line, but it is not save for input
+            // valuesTypesArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
+
+            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
+            {
+                string temp;
+                for ( int colInd = startCol; colInd < endCol; colInd++ )
+                {
+                    string colName = GetColumnFromNumber( colInd );
+                    // beware: the cell index works like this coming line
+                    temp =
+                        worksheet.Cells[ rowInd, colName].GetType().ToString()
+                            ?? string.Empty;
+
+                    valuesTypesArray[ colInd, rowInd ] =  temp ;
+
+                }   // end: for ( int colInd
+
+            }   // end: for ( int rowInd
+
+```
+
+In writing the data to an excel workbook the strength of the interop classes can be seen:
+
+```c#
+            // calculate the Excel range to write to
+            int colCount = valuesStringArray.GetLength( 0 );
+            int rowCount = valuesStringArray.GetLength( 1 );
+
+            int startCol = 1;
+            int endCol = startCol + colCount - 1;
+            int startRow = 1;
+            int endRow = startRow + rowCount - 1;
+
+            // the strings
+            string xDim1 = GetColumnFromNumber( startCol );
+            string xDim2 = GetColumnFromNumber( endCol );
+            string yDim1 = startRow.ToString();
+            string yDim2 = endRow.ToString();
+
+			// send the data
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
+
+```
+
+You see the most complex thing of this operation is to setup the Range boundaries for Excel.
 
 
 
