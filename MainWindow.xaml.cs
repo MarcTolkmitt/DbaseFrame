@@ -36,7 +36,8 @@ namespace DbaseFrame
         ///           beim Start Paketnummer ( PackageInfo ) und Version des Beispielprogramms anzeigen;
         ///           OleDb-Menüpunkte über ExcelDo / AccessDo: ohne geöffnete Datei ein Hinweis
         ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad );
-        ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben )
+        ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben );
+        ///           Access-Dialog abgebrochen → nichts offen
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -437,9 +438,16 @@ namespace DbaseFrame
         {
             SafeDo( "Access", ( ) =>
             {
-                dbfAccess = new AccessOleDb( "", false );
-                Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
-                Display( $"connection string is {dbfAccess.sourceConnectionString}" );
+                AccessOleDb datei = new AccessOleDb( "", false );
+                if ( datei.lastError != "" )
+                {   // abgebrochen: nichts offen ( 27.11.26, wie ExcelLoad )
+                    dbfAccess = null;
+                    Display( "OleDb Access: keine Datei geöffnet – " + datei.lastError );
+                    return;
+                }   // ende: abgebrochen
+                dbfAccess = datei;
+                Display( $"chosen file is {datei.sourceConnectionFile}" );
+                Display( $"connection string is {datei.sourceConnectionString}" );
             } );
 
         }   // end: _mItemAccesLoad_Click

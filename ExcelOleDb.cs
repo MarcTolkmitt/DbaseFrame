@@ -451,7 +451,7 @@ namespace DbaseFrame
         /// <param name="wert">Wert aus dem Leser</param>
         /// <param name="zahl">die Zahl</param>
         /// <returns>false bei Text, der keine Zahl ist</returns>
-        static bool TryCellNumber( object? wert, out double zahl )
+        internal static bool TryCellNumber( object? wert, out double zahl )
         {
             zahl = 0.0;
             switch ( wert )

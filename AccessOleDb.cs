@@ -34,9 +34,15 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 05.11.24
-        /// last edit: 30.12.25
+        /// last edit: 27.11.26
+        /// 27.11.26: Lesen wie ExcelOleDb abgesichert: Dialog abgebrochen → keine Datei ( lastError, vorher
+        ///           stillschweigend Access_Test.accdb ); OpenSource( ) meldet fehlende, gesperrte ( vorher Absturz im
+        ///           ACE-Treiber ), beschädigte Datei verständlich; ohne gewählte Tabelle klare Meldung; Tabellenwahl
+        ///           ohne Systemtabellen ( MSys… ); Read…List ganz oder gar nicht, neues Feld 'headers';
+        ///           ReadDoubleList wandelt jede Zahlenart ( vorher Int16, Decimal, Byte, Datum still 0 ), Text → Fehler;
+        ///           Tabelle ohne Datenzeile → Fehlermeldung
         /// </summary>
-        Version version = new Version( "1.0.5" );
+        Version version = new Version( "1.0.6" );
         /*
         string connectionString = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};" +
                                  "Dbq=C:\\Path\\To\\Your\\Database.accdb;" +
@@ -61,7 +67,19 @@ namespace DbaseFrame
         public int sheetNumber = -1;
 
         /// <summary>
+        /// Grund, wenn keine Datei gewählt ist ( z. B. "Dateiauswahl abgebrochen" ); sonst leer ( wie ExcelOleDb ).
+        /// </summary>
+        public string lastError = "";
+
+        /// <summary>
+        /// Spaltennamen der zuletzt gelesenen Tabelle ( wie ExcelOleDb.headers ); nur nach fehlerfreiem Lesen gesetzt.
+        /// </summary>
+        public string[] headers = new string[ 0 ];
+
+        /// <summary>
         /// Constructor for the class.
+        /// Ohne Dialog und ohne Namen gilt die Demo-Datei Access_Test.accdb im Arbeitsordner ( wie bisher );
+        /// Dialog abgebrochen → keine Datei, Grund in 'lastError' ( 27.11.26, wie ExcelOleDb ).
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
@@ -69,41 +87,111 @@ namespace DbaseFrame
         {
             sourceConnectionFile = file;
 
-            bool ok = false;
-            if ( !silent )
-                ok = DialogFileNameLoad( ref sourceConnectionFile );
-            if ( sourceConnectionFile != "" )
-            {
-                sourceConnectionString =
-                    sourceConnectionStart +
-                    sourceConnectionFile +
-                    sourceConnectionOptions;
-            }
-            else
-                sourceConnectionString =
-                    sourceConnectionStart +
-                    GetDirectory() +
-                    "Access_Test.accdb" +
-                    sourceConnectionOptions;
+            if ( !silent && !DialogFileNameLoad( ref sourceConnectionFile ) )
+            {   // abgebrochen ( 27.11.26: vorher stillschweigend Access_Test.accdb ): keine Datei
+                lastError = "Dateiauswahl abgebrochen";
+                sourceConnectionFile = "";
+                sourceConnectionString = "";
+                return;
+            }   // Ende: abgebrochen
+            if ( sourceConnectionFile == "" )
+                sourceConnectionFile = GetDirectory() + "Access_Test.accdb";
+            sourceConnectionFile = Path.GetFullPath( sourceConnectionFile );   // relativer Name → voller Pfad
+            sourceConnectionString =
+                sourceConnectionStart +
+                sourceConnectionFile +
+                sourceConnectionOptions;
 
         }   // end: AccessOleDb ( constructor )
 
         /// <summary>
-        /// Reads the table's data types as anonymous array of
-        /// strings into 'valuesTypes'.
+        /// Öffnet die Verbindung zur Quelldatei zum Lesen ( wie ExcelOleDb.OpenSource ).
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
+        /* Die Datei hat zu passen, sonst Fehlermeldung ( 27.11.26 ):
+         *  - keine Datei gewählt ( Dialog abgebrochen ), fehlend, ganz gesperrt ( sonst Absturz im ACE-Treiber ),
+         *    beschädigt / kein Access-Format / kennwortgeschützt / exklusiv geöffnet
+        */
+        /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
+        OleDbConnection OpenSource( )
+        {
+            if ( sourceConnectionFile == "" )
+                throw new InvalidOperationException( "AccessOleDb: keine Datei gewählt ( " + lastError + " )." );
+            if ( !File.Exists( sourceConnectionFile ) )
+                throw new FileNotFoundException( $"Access-Datei nicht gefunden: {sourceConnectionFile}", sourceConnectionFile );
+            ExcelOleDb.CheckReadable( sourceConnectionFile );
+            OleDbConnection conn = new OleDbConnection( sourceConnectionString );
+            try
+            {
+                conn.Open( );
+            }
+            catch ( OleDbException ex )
+            {   // beschädigt oder kein Access-Format
+                conn.Dispose( );
+                throw new InvalidDataException(
+                    $"Access-Datei kann nicht gelesen werden ( beschädigt, kein Access-Format, kennwortgeschützt oder exklusiv geöffnet ): {sourceConnectionFile}\n"
+                    + ex.Message, ex );
+            }   // Ende: beschädigt oder kein Access-Format
+            return ( conn );
+
+        }   // Ende: OleDbConnection OpenSource
+
+        /// <summary>
+        /// Name der gewählten Tabelle für das Lesen. Ohne gültige Wahl eine klare Fehlermeldung
+        /// ( 27.11.26, vorher IndexOutOfRangeException; wie ExcelOleDb ).
+        /// </summary>
+        /// <returns>Tabellenname</returns>
+        string SelectedTable( )
+        {
+            if ( ( sheetNumber < 0 ) || ( sheetNumber >= sheets.Length ) || string.IsNullOrEmpty( sheets[ sheetNumber ] ) )
+                throw new InvalidOperationException(
+                    "AccessOleDb: Keine Tabelle gewählt: zuerst ReadTableNames( ) aufrufen oder 'sheets' und 'sheetNumber' setzen." );
+            return ( sheets[ sheetNumber ] );
+
+        }   // Ende: string SelectedTable
+
+        /// <summary>
+        /// Die Tabellen des Nutzers ( TABLE_TYPE "TABLE" ), ohne Systemtabellen wie MSysACEs ( 27.11.26 ).
+        /// </summary>
+        /// <param name="conn">geöffnete Verbindung</param>
+        /// <returns>Tabellennamen in der Reihenfolge des Treibers</returns>
+        static string[] UserTables( OleDbConnection conn )
+        {
+            DataTable dt = conn.GetSchema( "Tables" ) ?? new DataTable( );
+            List<string> namen = new List<string>( );
+            foreach ( DataRow zeile in dt.Rows )
+                if ( ( zeile[ "TABLE_TYPE" ]?.ToString( ) ?? "" ) == "TABLE" )
+                    namen.Add( zeile[ "TABLE_NAME" ]?.ToString( ) ?? string.Empty );
+            return ( namen.ToArray( ) );
+
+        }   // Ende: string[] UserTables
+
+        /// <summary>
+        /// Spaltennamen des Lesers.
+        /// </summary>
+        static string[] ColumnNames( OleDbDataReader reader )
+        {
+            string[] namen = new string[ reader.FieldCount ];
+            for ( int pos = 0; pos < reader.FieldCount; pos++ )
+                namen[ pos ] = reader.GetName( pos ) ?? string.Empty;
+            return ( namen );
+
+        }   // Ende: string[] ColumnNames
+
+        /// <summary>
+        /// Reads the table's data types as anonymous array of
+        /// strings into 'valuesTypes'. Ohne Prüfung auf Daten ( Untersuchung fremder Daten, wie ExcelOleDb ).
+        /// </summary>
         public void ReadTypesList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelOleDb ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesTypes = new List<string[]>();
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
-                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                //*
+                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                valuesTypes = new List<string[]>();
-
+                string[] locHeaders = ColumnNames( reader );
+                List<string[]> locTypes = new List<string[]>();
 
                 while ( reader.Read() )
                 {
@@ -112,13 +200,13 @@ namespace DbaseFrame
                     for ( int pos = 0; pos < cols; pos++ )
                         temp[ pos ] =
                             reader[ pos ].GetType().ToString()
-                            //reader.GetString( pos )
                             ?? string.Empty;
-                    valuesTypes.Add( temp );
+                    locTypes.Add( temp );
 
                 }
                 reader.Close();
-                conn.Close();
+                valuesTypes = locTypes;
+                headers = locHeaders;
 
             }   // end: using
 
@@ -126,21 +214,20 @@ namespace DbaseFrame
 
         /// <summary>
         /// Reads the table's data as anonymous array of
-        /// strings into 'valuesString'.
+        /// strings into 'valuesString'. Tabelle ohne Datenzeile → InvalidDataException ( wie ExcelOleDb ).
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelOleDb ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesString = new List<string[]>();
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
-                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
-                //*
+                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                valuesString = new List<string[]>();
+                string[] locHeaders = ColumnNames( reader );
+                List<string[]> locStrings = new List<string[]>();
 
-                
                 while ( reader.Read() )
                 {
                     int cols = reader.FieldCount;
@@ -149,39 +236,15 @@ namespace DbaseFrame
                         temp[ pos ] =
                             reader[ pos ].ToString( )
                             ?? string.Empty;
-                    valuesString.Add( temp );
+                    locStrings.Add( temp );
 
                 }
                 reader.Close();
-                //*/
-                /*
-                // -----------------------------
-                OdbcDataAdapter dataAdapter = 
-                    new OdbcDataAdapter($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn );
-
-                // Our "bucket"
-                DataSet ds = new DataSet();
-                // Fill the bucket with the results of the query and give it the name "employees"
-                dataAdapter.Fill( ds, sheets[ sheetNumber ] );
-                // Loop through the rows of the only table in the DataSet
-                // Now keep in mind that the info in a DataSet can contain multiple tables of data and each table has columns and rows like a spreadsheet.
-                // So here we ask it to get the first table (aka Employees) and loop through each DataRow. We use the row to access the column "name" and add that value to the listbox.
-                valuesString = new List<string[]>();
-
-                foreach ( DataRow dataRow in ds.Tables[ 0 ].Rows )
-                {
-                    int cols = dataRow.Table.Columns.Count;
-                    string[] temp = new string[ cols ];
-                    for ( int pos = 0; pos < cols; pos++ )
-                        temp[ pos ] =
-                            dataRow[ pos ].ToString()
-                            ?? string.Empty;
-                    valuesString.Add( temp );
-
-                }
-
-                conn.Close();
-                */
+                // die Daten haben zu passen: eine Tabelle ohne Datenzeile ist kein Datensatz ( wie ExcelOleDb )
+                if ( locStrings.Count == 0 )
+                    throw new InvalidDataException( $"AccessOleDb.ReadStringList: Tabelle '{SelectedTable( )}' enthält keine Daten." );
+                valuesString = locStrings;
+                headers = locHeaders;
 
             }   // end: using
 
@@ -189,41 +252,41 @@ namespace DbaseFrame
 
         /// <summary>
         /// Reads the table's data as anonymous array of
-        /// doubles into 'valuesDouble'.
+        /// doubles into 'valuesDouble'. Umwandlung je Feld wie ExcelOleDb ( ExcelOleDb.TryCellNumber ):
+        /// Zahl jeder Art ( auch Int16, Decimal, Byte ), Datum als Seriennummer, Ja/Nein 1/0, Zahl als Text,
+        /// leer 0; anderer Text → InvalidDataException mit Zeile und Spalte.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelOleDb ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesDouble = new List<double[]>();
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
-                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                valuesDouble = new List<double[]>();
+                string[] locHeaders = ColumnNames( reader );
+                List<double[]> locDoubles = new List<double[]>();
 
                 while ( reader.Read() )
                 {
                     int cols = reader.FieldCount;
                     double[] temp = new double[ cols ];
                     for ( int pos = 0; pos < cols; pos++ )
-                        switch ( Type.GetTypeCode( reader[ pos ].GetType() ) )
-                        {
-                            case TypeCode.Int32:
-                                temp[ pos ] = (double)reader.GetInt32( pos );
-                                break;
-                            case TypeCode.Double:
-                                temp[ pos ] = reader.GetDouble( pos );
-                                break;
-                            case TypeCode.Single:
-                                temp[ pos ] = (double)reader.GetFloat( pos );
-                                break;
-
-                        }
-
-                    valuesDouble.Add( temp );
+                    {   // jeder Wert einzeln geprüft ( 27.11.26: vorher nur Int32, Double, Single, alles andere still 0 )
+                        if ( !ExcelOleDb.TryCellNumber( reader[ pos ], out temp[ pos ] ) )
+                            throw new InvalidDataException( $"AccessOleDb.ReadDoubleList: Zeile {locDoubles.Count + 1} der Tabelle, "
+                                + $"Spalte '{locHeaders[ pos ]}' enthält den Text '{reader[ pos ]}' statt einer Zahl ( nur leere Felder werden 0 )." );
+                    }   // Ende: jeder Wert einzeln geprüft
+                    locDoubles.Add( temp );
 
                 }
+                reader.Close();
+                // die Daten haben zu passen: eine Tabelle ohne Datenzeile ist kein Datensatz ( wie ExcelOleDb )
+                if ( locDoubles.Count == 0 )
+                    throw new InvalidDataException( $"AccessOleDb.ReadDoubleList: Tabelle '{SelectedTable( )}' enthält keine Daten." );
+                valuesDouble = locDoubles;
+                headers = locHeaders;
 
             }   // end: using
 
@@ -231,87 +294,37 @@ namespace DbaseFrame
 
         /// <summary>
         /// Returns the number of a chosen table. A dialog will open to let you choose from
-        /// the found table names.
+        /// the found table names ( nur Tabellen des Nutzers, ohne Systemtabellen, 27.11.26 ).
         /// </summary>
-        /// <returns>the number</returns>
+        /// <returns>the number, -1 = keine gewählt</returns>
         public int ReadTableNames( )
         {
-            DataTable dt = new DataTable();
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                try
-                {
-                    // Your ODBC connection code
-                    conn.Open();
-                    dt =
-                        conn.GetSchema( "Tables" )
-                        ?? new DataTable();
-                    conn.Close() ;
-
-                }
-                catch ( OdbcException ex )
-                {
-                    Console.WriteLine( "Error: " + ex.Message );
-                    Console.WriteLine( "Error number: " + ex.ErrorCode );
-                    Console.WriteLine( "Error source: " + ex.Source );
-                }
-
+                sheets = UserTables( conn );
             }   // end: using
 
-            if ( dt != null )
-            {
-                sheets = new string[ dt.Rows.Count ];
-
-                for ( int i = 0; i < sheets.Length; i++ )
-                {
-                    sheets[ i ] = 
-                        dt.Rows[ i ][ "TABLE_NAME" ].ToString()
-                        ?? string.Empty;
-
-                }
-
-                DialogTablesChoice choice = new DialogTablesChoice( sheets );
-                sheetNumber = choice.index;
-                return ( sheetNumber );
-
-            }
-            return ( -1 );
+            DialogTablesChoice choice = new DialogTablesChoice( sheets );
+            sheetNumber = choice.index;
+            return ( sheetNumber );
 
         }   // end: ReadTableNames
 
         /// <summary>
-        /// Direct query for the table name.
+        /// Direct query for the table name ( Zählung wie ReadTableNames, ohne Systemtabellen ).
         /// </summary>
         /// <param name="numTable">number of the sheet</param>
         /// <returns>the name or 'string.empty'</returns>
         public string GetTableName( int numTable )
         {
-            DataTable dt = new DataTable();
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            string[] tabellen;
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                try
-                {
-                    // Your ODBC connection code
-                    conn.Open();
-                    dt =
-                        conn.GetSchema( "Tables" )
-                        ?? new DataTable();
-                    conn.Close();
-
-                }
-                catch ( OdbcException ex )
-                {
-                    Console.WriteLine( "Error: " + ex.Message );
-                    Console.WriteLine( "Error number: " + ex.ErrorCode );
-                    Console.WriteLine( "Error source: " + ex.Source );
-                }
-
+                tabellen = UserTables( conn );
             }   // end: using
 
-            if (  dt.Rows.Count > numTable )
-            {
-                return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
-            }
+            if ( ( numTable >= 0 ) && ( numTable < tabellen.Length ) )
+                return ( tabellen[ numTable ] );
             return ( string.Empty );
 
         }   // end: GetTableName
