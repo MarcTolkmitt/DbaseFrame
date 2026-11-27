@@ -50,7 +50,8 @@ namespace DbaseFrame
         ///           ganz gesperrte Datei → IOException ( CheckReadable ), vorher Absturz im ACE-Treiber;
         ///           Read…List leeren ihre Liste zu Beginn ( nach einem Fehler keine Daten eines früheren Lesens );
         ///           ReadDoubleList liest mit IMEX=1 und wandelt je Zelle wie ExcelInterop ( Text statt Zahl →
-        ///           InvalidDataException; vorher still 0, auch WAHR und "1,5" )
+        ///           InvalidDataException; vorher still 0, auch WAHR und "1,5" );
+        ///           ReadStringList / ReadDoubleList: Tabelle ohne Datenzeile → InvalidDataException
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -380,6 +381,10 @@ namespace DbaseFrame
                     locStrings.Add( temp );
 
                 }
+                // die Daten haben zu passen: eine Tabelle ohne Datenzeile ist kein Datensatz ( 27.11.26, wie ExcelInterop )
+                if ( locStrings.Count == 0 )
+                    throw new InvalidDataException( $"ExcelOleDb.ReadStringList: Tabelle '{SelectedTable( )}' enthält keine Daten"
+                        + ( useHeader ? " unter der Kopfzeile." : "." ) );
                 valuesString = locStrings;
                 headers = locHeaders;
 
@@ -426,6 +431,10 @@ namespace DbaseFrame
                     locDoubles.Add( temp );
 
                 }
+                // die Daten haben zu passen: eine Tabelle ohne Datenzeile ist kein Datensatz ( 27.11.26, wie ExcelInterop )
+                if ( locDoubles.Count == 0 )
+                    throw new InvalidDataException( $"ExcelOleDb.ReadDoubleList: Tabelle '{SelectedTable( )}' enthält keine Daten"
+                        + ( useHeader ? " unter der Kopfzeile." : "." ) );
                 valuesDouble = locDoubles;
                 headers = locHeaders;
 

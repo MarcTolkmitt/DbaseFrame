@@ -61,7 +61,8 @@ namespace DbaseFrame
         ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings );
         ///           'headers' ebenso: zu Beginn leer, nur nach fehlerfreiem Lesen gesetzt ( ReadHeaders liefert zurück );
         ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie );
-        ///           ganz gesperrte Datei → lastError "gesperrt" ( vorher "beschädigt, kein Excel-Format" )
+        ///           ganz gesperrte Datei → lastError "gesperrt" ( vorher "beschädigt, kein Excel-Format" );
+        ///           ReadStrings / ReadDoubles: Blatt nur mit Kopfzeile → Fehlermeldung ( CheckDataRows )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -689,6 +690,7 @@ namespace DbaseFrame
             */
             string[] locHeaders = ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
+            CheckDataRows( rowCount, startRow, "ReadStrings" );
 
             string[,] locStringArray = new string[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
 
@@ -825,6 +827,22 @@ namespace DbaseFrame
                 + $"enthält den Text '{wert}' statt einer Zahl ( nur leere Zellen werden 0 )." ) );
 
         }   // Ende: InvalidDataException TextInNumberCell
+
+        /// <summary>
+        /// Die Daten haben zu passen: Unter der Kopfzeile muss es Daten geben ( 27.11.26; ein Blatt nur mit
+        /// Kopfzeile ist wie ein leeres Blatt kein Datensatz, vorher leeres Ergebnis ohne Meldung ).
+        /// </summary>
+        /// <param name="rowCount">Zeilen des Datenrechtecks</param>
+        /// <param name="startRow">erste Datenzeile im Rechteck ( 2 mit Kopfzeile )</param>
+        /// <param name="funktion">aufrufende Funktion</param>
+        /// <exception cref="InvalidDataException">keine Datenzeile</exception>
+        void CheckDataRows( int rowCount, int startRow, string funktion )
+        {
+            if ( rowCount < startRow )
+                throw new InvalidDataException( $"ExcelInterop.{funktion}: Blatt '{worksheet.Name}' enthält unter der "
+                    + "Kopfzeile keine Daten." );
+
+        }   // Ende: void CheckDataRows
 
         /// <summary>
         /// Fehlertext zu einem Excel-Fehlercode aus Value2 ( Schreibweise des deutschen Excel ).
@@ -1212,6 +1230,7 @@ namespace DbaseFrame
             // Kopfzeile wie in ReadStrings ( useHeader: erste Zeile nach 'headers', Daten ab der zweiten )
             string[] locHeaders = ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
+            CheckDataRows( rowCount, startRow, "ReadDoubles" );
 
             // erst lokal füllen, erst am Ende zuweisen ( wie ReadDoubles für einen Bereich ): Bricht das Lesen
             // bei Text ab, bleibt kein halb gefülltes Feld zurück ( 27.11.26: vorher Rest 0, so auch speicherbar )
