@@ -35,7 +35,7 @@ namespace DbaseFrame
         ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen;
         ///           beim Start Paketnummer ( PackageInfo ) und Version des Beispielprogramms anzeigen;
         ///           OleDb-Menüpunkte über ExcelDo / AccessDo: ohne geöffnete Datei ein Hinweis
-        ///           ( vorher "Object reference not set" )
+        ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad )
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -252,10 +252,27 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcelNH_Click( object sender, RoutedEventArgs e )
         {   // use dialog for the filename and no headers
-            dbfExcel = new ExcelOleDb( "", false, false );
-            Display( $"chosen file is {dbfExcel.fileName}" );
+            ExcelLoad( false );
 
         }   // end: _mItemLoadExcelNH_Click
+
+        /// <summary>
+        /// Hilfsfunktion: Excel-Datei ( OleDb ) per Dialog wählen; abgebrochen → nichts offen ( wie InteropOpen ).
+        /// </summary>
+        /// <param name="headers">erste Zeile als Kopfzeile</param>
+        void ExcelLoad( bool headers )
+        {
+            ExcelOleDb datei = new ExcelOleDb( "", false, headers );
+            if ( datei.lastError != "" )
+            {   // abgebrochen: nichts offen ( 27.11.26: vorher stillschweigend Parable_Demo.xlsx )
+                dbfExcel = null;
+                Display( "OleDb Excel: keine Datei geöffnet – " + datei.lastError );
+                return;
+            }   // ende: abgebrochen
+            dbfExcel = datei;
+            Display( $"chosen file is {datei.fileName}" );
+
+        }   // Ende: void ExcelLoad
 
         /// <summary>
         /// handler function -> _mItemLoadExcel_Click
@@ -264,8 +281,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemLoadExcelWH_Click( object sender, RoutedEventArgs e )
         {   // use dialog for the filename and headers
-            dbfExcel = new ExcelOleDb( "", false, true );
-            Display( $"chosen file is {dbfExcel.fileName}" );
+            ExcelLoad( true );
 
         }   // end: _mItemLoadExcelWH_Click
 

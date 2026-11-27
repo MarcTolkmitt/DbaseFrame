@@ -41,7 +41,9 @@ namespace DbaseFrame
         ///           relativer Dateiname → voller Pfad; Lesen ohne gewählte Tabelle → klare Meldung;
         ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben ( vorher NewTarget.xlsx );
         ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen ) und prüft vorher die
-        ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben )
+        ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben );
+        ///           Dateidialog abgebrochen → keine Datei ( 'lastError', wie ExcelInterop ), vorher stillschweigend
+        ///           Parable_Demo.xlsx aus dem Arbeitsordner
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -57,6 +59,11 @@ namespace DbaseFrame
         public string connectionString = "";
         public string targetConnectionString = "";
         public string fileName = "";
+
+        /// <summary>
+        /// Grund, wenn keine Datei gewählt ist ( z. B. "Dateiauswahl abgebrochen" ); sonst leer ( wie ExcelInterop ).
+        /// </summary>
+        public string lastError = "";
         public string targetFileName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
@@ -80,7 +87,17 @@ namespace DbaseFrame
             useHeader = doUseHeader;
             bool ok = false;
             if ( !silent )
+            {   // Datei per Dialog
                 ok = DialogFileNameLoad( ref fileName );
+                if ( !ok )
+                {   // abgebrochen ( Vorgabe vom 27.11.26, wie ExcelInterop ): keine Datei, keine Ersatzdatei
+                    lastError = "Dateiauswahl abgebrochen";
+                    fileName = "";
+                    sourceFile = "";
+                    connectionString = "";
+                    return;
+                }   // Ende: abgebrochen
+            }   // Ende: Datei per Dialog
             if ( fileName != "" )
             {
                 sourceFile = Path.GetFullPath( fileName );  // relativer Name → voller Pfad, eindeutig
@@ -191,6 +208,9 @@ namespace DbaseFrame
         /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
         OleDbConnection OpenSource( )
         {
+            // keine Datei gewählt ( Dialog abgebrochen ): klare Meldung statt "nicht gefunden: " ohne Namen
+            if ( sourceFile == "" )
+                throw new InvalidOperationException( "ExcelOleDb: keine Datei gewählt ( " + lastError + " )." );
             if ( !File.Exists( sourceFile ) )
                 throw new FileNotFoundException( $"Excel-Datei nicht gefunden: {sourceFile}", sourceFile );
             OleDbConnection conn = new OleDbConnection( connectionString );
