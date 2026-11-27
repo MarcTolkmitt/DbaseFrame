@@ -10,11 +10,11 @@ My 'NPOIwrap' is closed for the reason that i believe 'NPOI' is <u>unsafe</u>. W
 
 Starting as example codes for my programs i plan to create classes that handle it all. I know understanding something is meaning you are not needing it - but you use OOPs for that convenience.
 
-**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
+**Standard disclaimer ( updated 27.11.2026 ): writing with OleDb works for <u>simple</u> tables only – one table in a <u>new</u> file, numbers and texts up to 255 characters. For anything else ( updating existing tables, formats, several tables ) use <u>Interop</u>.**
 
 ## <u>2. Excel file handling with OleDb works, but it's not good enough</u>
 
-**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
+**Standard disclaimer ( updated 27.11.2026 ): writing with OleDb works for <u>simple</u> tables only – one table in a <u>new</u> file, numbers and texts up to 255 characters. For anything else ( updating existing tables, formats, several tables ) use <u>Interop</u>.**
 
 I will use **'System.Data.OleDb'** that is installed as NuGet package.
 
@@ -120,7 +120,7 @@ I personally have enough with pushing an array into an Excel spreadsheet - one t
 
 ### <u>3. Access with OleDb is even worse</u>
 
-**Standard disclaimer: do use OleDB <u>only</u> for reading and <u>not</u> for writing anything.**
+**Standard disclaimer ( updated 27.11.2026 ): writing with OleDb works for <u>simple</u> tables only – one table in a <u>new</u> file, numbers and texts up to 255 characters. For anything else ( updating existing tables, formats, several tables ) use <u>Interop</u>.**
 
 Here you can see the full ability of the device driver givers. As good as nothing had to be changed in the script except the connection string which points to the Access file.
 
