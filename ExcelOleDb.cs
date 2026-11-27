@@ -84,6 +84,11 @@ namespace DbaseFrame
         /// Die Schreibfunktionen nehmen sie bei useHeader als Spaltennamen der neuen Tabelle ( 27.11.26 ).
         /// </summary>
         public string[] headers = new string[ 0 ];
+
+        // Spaltennamen je Datensatz ( 27.11.26 ): gesetzt zusammen mit valuesString bzw. valuesDouble, damit die
+        // Schreibfunktionen die Kopfzeile genau dieser Daten nehmen, auch wenn danach ein anderes Lesen scheitert
+        string[] headersString = new string[ 0 ];
+        string[] headersDouble = new string[ 0 ];
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
@@ -364,6 +369,7 @@ namespace DbaseFrame
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
             headers = new string[ 0 ];
             valuesString = new List<string[]>();
+            headersString = new string[ 0 ];
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{SelectedTable( )}]", conn);
@@ -387,6 +393,7 @@ namespace DbaseFrame
                     throw new InvalidDataException( $"ExcelOleDb.ReadStringList: Tabelle '{SelectedTable( )}' enthält keine Daten"
                         + ( useHeader ? " unter der Kopfzeile." : "." ) );
                 valuesString = locStrings;
+                headersString = locHeaders;
                 headers = locHeaders;
 
             }   // end: using
@@ -404,6 +411,7 @@ namespace DbaseFrame
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
             headers = new string[ 0 ];
             valuesDouble = new List<double[]>();
+            headersDouble = new string[ 0 ];
             /* Die Daten haben zu passen ( 27.11.26, wie ExcelInterop.ReadDoubles ):
              *  - ohne IMEX liefert der ACE-Treiber Text in einer Zahlenspalte als DBNull, nicht unterscheidbar von
              *    einer leeren Zelle ( gemessen ); mit IMEX=1 kommt eine gemischte Spalte als Text
@@ -437,6 +445,7 @@ namespace DbaseFrame
                     throw new InvalidDataException( $"ExcelOleDb.ReadDoubleList: Tabelle '{SelectedTable( )}' enthält keine Daten"
                         + ( useHeader ? " unter der Kopfzeile." : "." ) );
                 valuesDouble = locDoubles;
+                headersDouble = locHeaders;
                 headers = locHeaders;
 
             }   // end: using
@@ -702,7 +711,7 @@ namespace DbaseFrame
             // craft the 'CREATE TABLE' and 'INSERT INTO'; Spaltennamen bei useHeader aus der gelesenen
             // Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesDouble[0].Length;
-            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headers, useHeader, columns ), "DOUBLE",
+            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersDouble, useHeader, columns ), "DOUBLE",
                 out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
@@ -773,7 +782,7 @@ namespace DbaseFrame
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen );
             // Spaltennamen bei useHeader aus der gelesenen Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesString[0].Length;
-            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headers, useHeader, columns ), "VARCHAR",
+            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersString, useHeader, columns ), "VARCHAR",
                 out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {

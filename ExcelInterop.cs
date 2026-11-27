@@ -84,6 +84,11 @@ namespace DbaseFrame
         /// </summary>
         public string[] headers = new string[ 0 ];
 
+        // Kopfzeile je Datensatz ( 27.11.26 ): gesetzt zusammen mit valuesStringArray bzw. valuesDoubleArray, damit
+        // Write…ToNewTarget die Kopfzeile genau dieser Daten schreiben, auch wenn danach ein anderes Lesen scheitert
+        string[] headersString = new string[ 0 ];
+        string[] headersDouble = new string[ 0 ];
+
         /// <summary>
         /// Mappe nur zum Lesen geöffnet: Excel öffnet sie schreibgeschützt, beim Beenden wird nichts gespeichert
         /// </summary>
@@ -675,6 +680,7 @@ namespace DbaseFrame
             // ( z. B. leeres Blatt ), bleiben keine Texte eines früher gelesenen Blatts stehen; die
             // Schreibfunktionen melden dann "keine Texte vorhanden" ( CheckStrings ); die Kopfzeile ebenso
             valuesStringArray = null!;
+            headersString = new string[ 0 ];
             headers = new string[ 0 ];
 
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
@@ -706,6 +712,7 @@ namespace DbaseFrame
             }   // end: for ( int rowInd
 
             valuesStringArray = locStringArray;
+            headersString = locHeaders;
             headers = locHeaders;
 
         }   // end: ReadStrings
@@ -1218,6 +1225,7 @@ namespace DbaseFrame
             // gelesenen Blatts stehen, die sich ohne Hinweis speichern ließen; die Schreibfunktionen melden dann
             // "keine Zahlen vorhanden" ( CheckFinite ); die Kopfzeile ebenso
             valuesDoubleArray = null!;
+            headersDouble = new string[ 0 ];
             headers = new string[ 0 ];
 
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
@@ -1254,6 +1262,7 @@ namespace DbaseFrame
             }   // end: for ( int rowInd
 
             valuesDoubleArray = locDoubleArray;
+            headersDouble = locHeaders;
             headers = locHeaders;
 
         }   // end: ReadDoubles
@@ -1499,8 +1508,8 @@ namespace DbaseFrame
                 {   // nur bei Daten schreiben
                     int startCol = 1;
                     int endCol = startCol + colCount - 1;
-                    // bei useHeader zuerst die gelesene Kopfzeile, die Daten darunter ( 27.11.26 )
-                    int startRow = WriteHeaderRow( newSheet, colCount );
+                    // bei useHeader zuerst die Kopfzeile genau dieser Zahlen, die Daten darunter ( 27.11.26 )
+                    int startRow = WriteHeaderRow( newSheet, colCount, headersDouble );
                     int endRow = startRow + rowCount - 1;
 
                     // die Strings
@@ -1580,8 +1589,8 @@ namespace DbaseFrame
                 {   // nur bei Daten schreiben
                     int startCol = 1;
                     int endCol = startCol + colCount - 1;
-                    // bei useHeader zuerst die gelesene Kopfzeile, die Daten darunter ( 27.11.26 )
-                    int startRow = WriteHeaderRow( newSheet, colCount );
+                    // bei useHeader zuerst die Kopfzeile genau dieser Texte, die Daten darunter ( 27.11.26 )
+                    int startRow = WriteHeaderRow( newSheet, colCount, headersString );
                     int endRow = startRow + rowCount - 1;
 
                     // die Strings
@@ -1611,13 +1620,14 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="sheet">das neue Blatt</param>
         /// <param name="colCount">Spaltenzahl der Daten</param>
+        /// <param name="kopf">Kopfzeile genau dieser Daten ( headersDouble bzw. headersString )</param>
         /// <returns>erste Zeile für die Daten: 2 mit Kopfzeile, sonst 1</returns>
-        int WriteHeaderRow( Excel.Worksheet sheet, int colCount )
+        int WriteHeaderRow( Excel.Worksheet sheet, int colCount, string[] kopf )
         {
-            if ( !useHeader || ( colCount == 0 ) || ( headers.Length != colCount ) )
+            if ( !useHeader || ( colCount == 0 ) || ( kopf.Length != colCount ) )
                 return ( 1 );
             // ein eindimensionales Feld schreibt Excel als eine Zeile ( wie AppendRowStringField )
-            sheet.Range[ "A1", GetColumnFromNumber( colCount ) + "1" ].Value2 = headers;
+            sheet.Range[ "A1", GetColumnFromNumber( colCount ) + "1" ].Value2 = kopf;
             return ( 2 );
 
         }   // Ende: int WriteHeaderRow

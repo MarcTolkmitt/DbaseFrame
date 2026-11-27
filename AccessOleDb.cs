@@ -80,6 +80,10 @@ namespace DbaseFrame
         /// </summary>
         public string[] headers = new string[ 0 ];
 
+        // Spaltennamen je Datensatz ( 27.11.26, wie ExcelOleDb ): gesetzt zusammen mit valuesString bzw. valuesDouble
+        string[] headersString = new string[ 0 ];
+        string[] headersDouble = new string[ 0 ];
+
         /// <summary>
         /// Constructor for the class.
         /// Ohne Dialog und ohne Namen gilt die Demo-Datei Access_Test.accdb im Arbeitsordner ( wie bisher );
@@ -225,6 +229,7 @@ namespace DbaseFrame
             // ganz oder gar nicht ( 27.11.26, wie ExcelOleDb ): zu Beginn leeren, lokal füllen, am Ende zuweisen
             headers = new string[ 0 ];
             valuesString = new List<string[]>();
+            headersString = new string[ 0 ];
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
@@ -248,6 +253,7 @@ namespace DbaseFrame
                 if ( locStrings.Count == 0 )
                     throw new InvalidDataException( $"AccessOleDb.ReadStringList: Tabelle '{SelectedTable( )}' enthält keine Daten." );
                 valuesString = locStrings;
+                headersString = locHeaders;
                 headers = locHeaders;
 
             }   // end: using
@@ -265,6 +271,7 @@ namespace DbaseFrame
             // ganz oder gar nicht ( 27.11.26, wie ExcelOleDb ): zu Beginn leeren, lokal füllen, am Ende zuweisen
             headers = new string[ 0 ];
             valuesDouble = new List<double[]>();
+            headersDouble = new string[ 0 ];
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
@@ -290,6 +297,7 @@ namespace DbaseFrame
                 if ( locDoubles.Count == 0 )
                     throw new InvalidDataException( $"AccessOleDb.ReadDoubleList: Tabelle '{SelectedTable( )}' enthält keine Daten." );
                 valuesDouble = locDoubles;
+                headersDouble = locHeaders;
                 headers = locHeaders;
 
             }   // end: using
@@ -419,9 +427,10 @@ namespace DbaseFrame
         /// <param name="typ">SQL-Typ ( DOUBLE, VARCHAR )</param>
         /// <param name="parameterTyp">OleDb-Typ der Werte</param>
         /// <param name="zeilen">die Zeilen als Werte</param>
+        /// <param name="kopf">Spaltennamen genau dieser Daten ( headersDouble bzw. headersString )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen</returns>
         bool WriteTable( string newFileTarget, string newTableName, int columns, string typ, OleDbType parameterTyp,
-            IEnumerable<object[]> zeilen )
+            IEnumerable<object[]> zeilen, string[] kopf )
         {
             bool overwrite = false;
             while ( !overwrite )
@@ -446,7 +455,7 @@ namespace DbaseFrame
 
             CreateDatabase( newFileTarget );
             string commandCreate = ExcelOleDb.TableCommands( newTableName,
-                ExcelOleDb.ColumnNamesForWrite( headers, true, columns ), typ, out string commandInsert );
+                ExcelOleDb.ColumnNamesForWrite( kopf, true, columns ), typ, out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
@@ -484,7 +493,7 @@ namespace DbaseFrame
             List<object[]> zeilen = new List<object[]>( );
             foreach ( double[] zeile in valuesDouble )
                 zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
-            return ( WriteTable( newFileTarget, newTableName, valuesDouble[ 0 ].Length, "DOUBLE", OleDbType.Double, zeilen ) );
+            return ( WriteTable( newFileTarget, newTableName, valuesDouble[ 0 ].Length, "DOUBLE", OleDbType.Double, zeilen, headersDouble ) );
 
         }   // end: WriteListDoubleToNewTarget
 
@@ -509,7 +518,7 @@ namespace DbaseFrame
             foreach ( string[] zeile in valuesString )
                 zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen )
-            return ( WriteTable( newFileTarget, newTableName, valuesString[ 0 ].Length, "VARCHAR", OleDbType.VarChar, zeilen ) );
+            return ( WriteTable( newFileTarget, newTableName, valuesString[ 0 ].Length, "VARCHAR", OleDbType.VarChar, zeilen, headersString ) );
 
         }   // end: WriteListStringToNewTarget
 
