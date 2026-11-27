@@ -51,7 +51,8 @@ namespace DbaseFrame
         ///           Read…List leeren ihre Liste zu Beginn ( nach einem Fehler keine Daten eines früheren Lesens );
         ///           ReadDoubleList liest mit IMEX=1 und wandelt je Zelle wie ExcelInterop ( Text statt Zahl →
         ///           InvalidDataException; vorher still 0, auch WAHR und "1,5" );
-        ///           ReadStringList / ReadDoubleList: Tabelle ohne Datenzeile → InvalidDataException
+        ///           ReadStringList / ReadDoubleList: Tabelle ohne Datenzeile → InvalidDataException;
+        ///           Write…ToNewTarget ohne Schließen/Öffnen zwischen CREATE und INSERT ( sonst Zahlen als Text )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -704,9 +705,8 @@ namespace DbaseFrame
                 // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
-                connection.Close();
-                
-                connection.Open();
+                // Verbindung offen lassen ( 27.11.26, gemessen ): Schließen und Wiederöffnen zwischen CREATE TABLE und
+                // INSERT ließ den ACE-Treiber die Zahlen als Text schreiben ( "1,5" statt 1.5 )
                 foreach ( double[] row in valuesDouble )
                 {
                     command.CommandText = commandInsert;
@@ -775,9 +775,7 @@ namespace DbaseFrame
                 // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
-                connection.Close();
-
-                connection.Open();
+                // Verbindung offen lassen wie in WriteListDoubleToNewTarget ( 27.11.26 )
                 foreach ( string[] row in valuesString )
                 {
                     command.CommandText = commandInsert;
