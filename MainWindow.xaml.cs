@@ -31,7 +31,8 @@ namespace DbaseFrame
         /// <summary>
         /// created on: 22.10.24
         /// last edit: 27.11.26
-        /// 27.11.26: Menü "Interop Excel" führt ExcelInterop vor
+        /// 27.11.26: Menü "Interop Excel" führt ExcelInterop vor; Excel- und Access-Menüpunkte über SafeDo:
+        ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -158,6 +159,25 @@ namespace DbaseFrame
 
         }   // end: Display
 
+        /// <summary>
+        /// Hilfsfunktion: führt einen Menüpunkt aus und zeigt Fehler an, statt das Programm abbrechen zu lassen
+        /// ( z. B. defekte oder fehlende Datei, noch keine Datei bzw. Tabelle gewählt ).
+        /// </summary>
+        /// <param name="quelle">Name für die Meldung ( Excel, Access )</param>
+        /// <param name="aktion">der Menüpunkt</param>
+        void SafeDo( string quelle, Action aktion )
+        {
+            try
+            {
+                aktion( );
+            }
+            catch ( Exception ex )
+            {   // Fehler anzeigen, Programm läuft weiter
+                Display( $"{quelle}-Fehler: {ex.Message}" );
+            }   // Ende: Fehler anzeigen, Programm läuft weiter
+
+        }   // Ende: void SafeDo
+
         // ----------------------------------------     Events
 
         /// <summary>
@@ -217,15 +237,18 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemReadTables_Click( object sender, RoutedEventArgs e )
         {
-            int result = dbfExcel.ReadTableNames();
-            if ( result == -1 )
+            SafeDo( "Excel", ( ) =>
             {
-                Display( "no tabel found or chosen, please try again!" );
-                return;
+                int result = dbfExcel.ReadTableNames();
+                if ( result == -1 )
+                {
+                    Display( "no tabel found or chosen, please try again!" );
+                    return;
 
-            }
-            Display( $"Chosen table is number { result }" );
-            Display( $"Chosen table is {dbfExcel.sheets[ result ]}" );
+                }
+                Display( $"Chosen table is number { result }" );
+                Display( $"Chosen table is {dbfExcel.sheets[ result ]}" );
+            } );
 
         }   // end: _mItemReadTables_Click
 
@@ -236,12 +259,15 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemReadTableNumber_Click( object sender, RoutedEventArgs e )
         {
-            for ( int i = 0; i < 10; i++ )
+            SafeDo( "Excel", ( ) =>
             {
-                string result = dbfExcel.GetTableName( i );
-                Display( $"Table {i}: {result}" );
+                for ( int i = 0; i < 10; i++ )
+                {
+                    string result = dbfExcel.GetTableName( i );
+                    Display( $"Table {i}: {result}" );
 
-            }
+                }
+            } );
 
         }   // end: _mItemReadTableNumber_Click
 
@@ -252,11 +278,13 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListTypesArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel.ReadTypesList();
-            foreach ( string[] line in dbfExcel.valuesTypes )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
-
+            SafeDo( "Excel", ( ) =>
+            {
+                dbfExcel.ReadTypesList();
+                foreach ( string[] line in dbfExcel.valuesTypes )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemExcelListTypesArray_Click
 
@@ -267,18 +295,21 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel.ReadStringList();
-            Display( "\nthe read data:" );
-            foreach ( string[] line in dbfExcel.valuesString )
-                Display( ArrayToString( line ) );
-            Display( "\nstring list as jagged array:" );
-            var rowArray = dbfExcel.valuesString.ToArray();
-            Display( ArrayJaggedToString( rowArray, false ) );
-            var listRows = rowArray.ToList();
-            Display( "jagged array as list again:" );
-            foreach ( string[] line in listRows )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
+            SafeDo( "Excel", ( ) =>
+            {
+                dbfExcel.ReadStringList();
+                Display( "\nthe read data:" );
+                foreach ( string[] line in dbfExcel.valuesString )
+                    Display( ArrayToString( line ) );
+                Display( "\nstring list as jagged array:" );
+                var rowArray = dbfExcel.valuesString.ToArray();
+                Display( ArrayJaggedToString( rowArray, false ) );
+                var listRows = rowArray.ToList();
+                Display( "jagged array as list again:" );
+                foreach ( string[] line in listRows )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemExcelListStringArray_Click
 
@@ -289,18 +320,21 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemExcelListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel.ReadDoubleList();
-            Display( "\nthe read data:" );
-            foreach ( double[] line in dbfExcel.valuesDouble )
-                Display( ArrayToString( line ) );
-            Display( "\ndouble list as jagged array:" );
-            var rowArray = dbfExcel.valuesDouble.ToArray();
-            Display( ArrayJaggedToString( rowArray, false ) );
-            var listRows = rowArray.ToList();
-            Display( "jagged array as list again:" );
-            foreach ( double[] line in listRows )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
+            SafeDo( "Excel", ( ) =>
+            {
+                dbfExcel.ReadDoubleList();
+                Display( "\nthe read data:" );
+                foreach ( double[] line in dbfExcel.valuesDouble )
+                    Display( ArrayToString( line ) );
+                Display( "\ndouble list as jagged array:" );
+                var rowArray = dbfExcel.valuesDouble.ToArray();
+                Display( ArrayJaggedToString( rowArray, false ) );
+                var listRows = rowArray.ToList();
+                Display( "jagged array as list again:" );
+                foreach ( double[] line in listRows )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemExcelListDoubleArray_Click
 
@@ -311,7 +345,10 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToExcel_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel.WriteListDoubleToNewTarget();
+            SafeDo( "Excel", ( ) =>
+            {
+                dbfExcel.WriteListDoubleToNewTarget();
+            } );
 
         }   // end: _mItemWriteListDoubleToExcel_Click
 
@@ -322,7 +359,10 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListStringToExcel_Click( object sender, RoutedEventArgs e )
         {
-            dbfExcel.WriteListStringToNewTarget();
+            SafeDo( "Excel", ( ) =>
+            {
+                dbfExcel.WriteListStringToNewTarget();
+            } );
 
         }   // end: _mItemWriteListStringToExcel_Click
 
@@ -335,9 +375,13 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccesLoad_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess = new AccessOleDb( "", false );
-            Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
-            Display( $"connection string is {dbfAccess.sourceConnectionString}" );
+            SafeDo( "Access", ( ) =>
+            {
+                dbfAccess = new AccessOleDb( "", false );
+                Display( $"chosen file is {dbfAccess.sourceConnectionFile}" );
+                Display( $"connection string is {dbfAccess.sourceConnectionString}" );
+            } );
+
         }   // end: _mItemAccesLoad_Click
 
         /// <summary>
@@ -347,15 +391,18 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadTables_Click( object sender, RoutedEventArgs e )
         {
-            int result = dbfAccess.ReadTableNames();
-            if ( result == -1 )
+            SafeDo( "Access", ( ) =>
             {
-                Display( "no tabel found or chosen, please try again!" );
-                return;
+                int result = dbfAccess.ReadTableNames();
+                if ( result == -1 )
+                {
+                    Display( "no tabel found or chosen, please try again!" );
+                    return;
 
-            }
-            Display( $"Chosen table is number {result}" );
-            Display( $"Chosen table is {dbfAccess.sheets[ result ]}" );
+                }
+                Display( $"Chosen table is number {result}" );
+                Display( $"Chosen table is {dbfAccess.sheets[ result ]}" );
+            } );
 
         }
 
@@ -366,12 +413,15 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadTableNumber_Click( object sender, RoutedEventArgs e )
         {
-            for ( int i = 0; i < 20; i++ )
+            SafeDo( "Access", ( ) =>
             {
-                string result = dbfAccess.GetTableName( i );
-                Display( $"Table {i}: {result}" );
+                for ( int i = 0; i < 20; i++ )
+                {
+                    string result = dbfAccess.GetTableName( i );
+                    Display( $"Table {i}: {result}" );
 
-            }
+                }
+            } );
 
         }
 
@@ -382,10 +432,13 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListTypesArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess.ReadTypesList();
-            foreach ( string[] line in dbfAccess.valuesTypes )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
+            SafeDo( "Access", ( ) =>
+            {
+                dbfAccess.ReadTypesList();
+                foreach ( string[] line in dbfAccess.valuesTypes )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemAccessListTypesArray_Click
 
@@ -396,18 +449,21 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListStringArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess.ReadStringList();
-            Display( "\nthe read data:" );
-            foreach ( string[] line in dbfAccess.valuesString )
-                Display( ArrayToString( line ) );
-            Display( "\nstring list as jagged array:" );
-            var rowArray = dbfAccess.valuesString.ToArray();
-            Display( ArrayJaggedToString( rowArray, false ) );
-            var listRows = rowArray.ToList();
-            Display( "jagged array as list again:" );
-            foreach ( string[] line in listRows )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
+            SafeDo( "Access", ( ) =>
+            {
+                dbfAccess.ReadStringList();
+                Display( "\nthe read data:" );
+                foreach ( string[] line in dbfAccess.valuesString )
+                    Display( ArrayToString( line ) );
+                Display( "\nstring list as jagged array:" );
+                var rowArray = dbfAccess.valuesString.ToArray();
+                Display( ArrayJaggedToString( rowArray, false ) );
+                var listRows = rowArray.ToList();
+                Display( "jagged array as list again:" );
+                foreach ( string[] line in listRows )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemAccessListStringArray_Click
 
@@ -418,18 +474,21 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessListDoubleArray_Click( object sender, RoutedEventArgs e )
         {
-            dbfAccess.ReadDoubleList();
-            Display( "\nthe read data:" );
-            foreach ( double[] line in dbfAccess.valuesDouble )
-                Display( ArrayToString( line ) );
-            Display( "\ndouble list as jagged array:" );
-            var rowArray = dbfAccess.valuesDouble.ToArray();
-            Display( ArrayJaggedToString( rowArray, false ) );
-            var listRows = rowArray.ToList();
-            Display( "jagged array as list again:" );
-            foreach ( double[] line in listRows )
-                Display( ArrayToString( line ) );
-            Display( "\n---------------------------------" );
+            SafeDo( "Access", ( ) =>
+            {
+                dbfAccess.ReadDoubleList();
+                Display( "\nthe read data:" );
+                foreach ( double[] line in dbfAccess.valuesDouble )
+                    Display( ArrayToString( line ) );
+                Display( "\ndouble list as jagged array:" );
+                var rowArray = dbfAccess.valuesDouble.ToArray();
+                Display( ArrayJaggedToString( rowArray, false ) );
+                var listRows = rowArray.ToList();
+                Display( "jagged array as list again:" );
+                foreach ( double[] line in listRows )
+                    Display( ArrayToString( line ) );
+                Display( "\n---------------------------------" );
+            } );
 
         }   // end: _mItemAccessListDoubleArray_Click
 
@@ -506,8 +565,8 @@ namespace DbaseFrame
             if ( dbfInterop.workbookOpen )
                 Display( $"Interop: geöffnet {dbfInterop.fileName} ( Kopfzeile: {headers}, nur lesen: {readOnly} )" );
             else
-            {   // abgebrochen oder Fehler
-                Display( "Interop: keine Datei geöffnet" );
+            {   // abgebrochen oder Fehler: Grund anzeigen
+                Display( "Interop: keine Datei geöffnet – " + dbfInterop.lastError );
                 dbfInterop.ExcelInteropQuit( );
                 dbfInterop = null;
             }   // ende: abgebrochen oder Fehler

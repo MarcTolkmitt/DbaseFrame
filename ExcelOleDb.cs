@@ -34,9 +34,12 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 30.06.25
+        /// last edit: 27.11.26
+        /// 27.11.26: Lesen über OpenSource( ): fehlende Datei → FileNotFoundException ( vorher legte der
+        ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
+        ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException
         /// </summary>
-        Version version = new Version( "1.0.13" );
+        Version version = new Version( "1.0.14" );
 
         // Connect to the Excel file
         public string conStringStart =
@@ -58,7 +61,12 @@ namespace DbaseFrame
         public int sheetNumber = -1;
 
         /// <summary>
-        /// Constructor for the class. 
+        /// Datei, aus der gelesen wird ( fileName oder ohne Namen die Demo-Datei Parable_Demo.xlsx )
+        /// </summary>
+        string sourceFile = "";
+
+        /// <summary>
+        /// Constructor for the class.
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
@@ -71,6 +79,7 @@ namespace DbaseFrame
                 ok = DialogFileNameLoad( ref fileName );
             if ( fileName != "" )
             {
+                sourceFile = fileName;
                 connectionString =
                     conStringStart + fileName + conStringEnd;
                 if ( useHeader )
@@ -80,8 +89,9 @@ namespace DbaseFrame
             }
             else
             {
+                sourceFile = GetDirectory() + "Parable_Demo.xlsx";
                 connectionString =
-                    conStringStart + 
+                    conStringStart +
                     GetDirectory() +
                     "Parable_Demo.xlsx" +
                     conStringEnd +
@@ -165,6 +175,36 @@ namespace DbaseFrame
 
         }   // end: DialogFileNameLoad
 
+        /// <summary>
+        /// Öffnet die Verbindung zur Quelldatei zum Lesen.
+        /// </summary>
+        /* Die Datei hat zu passen, sonst Fehlermeldung:
+         *  - fehlt sie, legt der ACE-Treiber beim Öffnen stillschweigend eine neue, leere Mappe an
+         *    → vorher prüfen, FileNotFoundException
+         *  - ist sie beschädigt oder kein Excel-Format, wirft Open( ) eine OleDbException
+         *    ( "Die externe Tabelle hat nicht das erwartete Format." ) → InvalidDataException mit Dateinamen
+        */
+        /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
+        OleDbConnection OpenSource( )
+        {
+            if ( !File.Exists( sourceFile ) )
+                throw new FileNotFoundException( $"Excel-Datei nicht gefunden: {sourceFile}", sourceFile );
+            OleDbConnection conn = new OleDbConnection( connectionString );
+            try
+            {
+                conn.Open( );
+            }
+            catch ( OleDbException ex )
+            {   // beschädigt oder kein Excel-Format
+                conn.Dispose( );
+                throw new InvalidDataException(
+                    $"Excel-Datei kann nicht gelesen werden ( beschädigt oder kein Excel-Format ): {sourceFile}\n"
+                    + ex.Message, ex );
+            }   // Ende: beschädigt oder kein Excel-Format
+            return ( conn );
+
+        }   // Ende: OleDbConnection OpenSource
+
         // --------------------------------------------     the routines
 
         /// <summary>
@@ -175,9 +215,8 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
                 OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
@@ -209,9 +248,8 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
@@ -240,9 +278,8 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
@@ -270,9 +307,8 @@ namespace DbaseFrame
         public int ReadTableNames()
         {
             DataTable? dt = null;
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
                 dt = 
                     conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
 
@@ -307,9 +343,8 @@ namespace DbaseFrame
         public string GetTableName( int numTable )
         {
             DataTable? dt = null;
-            using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
                 dt =
                     conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
 

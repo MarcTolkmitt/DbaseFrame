@@ -49,7 +49,8 @@ namespace DbaseFrame
         ///           ergeben eine Fehlermeldung; Zielname wird vervollständigt ( .xlsx, voller Pfad );
         ///           Konstruktor mit doReadOnly ( schreibgeschützt öffnen, beim Beenden nicht speichern ),
         ///           workbookOpen; Blätter 0-basiert ( GetSheetName, SetSheetName, NewSheet ), SelectSheet,
-        ///           Lesen und Schreiben im gewählten Blatt
+        ///           Lesen und Schreiben im gewählten Blatt;
+        ///           Grund eines gescheiterten Öffnens in 'lastError' ( fehlende / beschädigte Datei, Excel fehlt )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -82,6 +83,11 @@ namespace DbaseFrame
         public bool workbookOpen = false;
 
         /// <summary>
+        /// Grund, warum Excel nicht startete oder die Mappe nicht geöffnet wurde ( "" = kein Fehler )
+        /// </summary>
+        public string lastError = "";
+
+        /// <summary>
         /// Constructor for the class.
         /// </summary>
         /// <param name="file">a file name</param>
@@ -97,6 +103,7 @@ namespace DbaseFrame
             {   // Dateiname per Dialog
                 if ( !DialogFileNameLoad( ref fileName ) )
                 {   // abgebrochen: nichts öffnen ( 27.11.26: vorher wurde trotzdem geöffnet )
+                    lastError = "Dateiauswahl abgebrochen";
                     Console.WriteLine( "File dialog error... " );
                     return;
                 }   // ende: abgebrochen: nichts öffnen
@@ -109,10 +116,12 @@ namespace DbaseFrame
             }
             catch ( COMException comEx )
             {
+                lastError = "Excel ließ sich nicht starten: " + comEx.Message;
                 Console.WriteLine( "Excel-Interop-error: " + comEx.Message );
             }
             catch ( Exception ex )
             {
+                lastError = "Excel ließ sich nicht starten: " + ex.Message;
                 Console.WriteLine( "common error: " + ex.Message );
             }   // end: try excelApp
 
@@ -310,7 +319,13 @@ namespace DbaseFrame
         {
             workbookOpen = false;
             if ( excelApp == null )
-                return ( false );   // Excel ließ sich nicht starten
+                return ( false );   // Excel ließ sich nicht starten, Grund steht schon in lastError
+            if ( !File.Exists( fileName ) )
+            {   // fehlende Datei klar melden ( Excels Meldung dazu ist missverständlich )
+                lastError = $"Excel-Datei nicht gefunden: {fileName}";
+                Console.WriteLine( lastError );
+                return ( false );
+            }   // Ende: fehlende Datei klar melden
             try
             {
                 // Datei öffnen; bei readOnly schreibgeschützt ( 27.11.26: vorher immer beschreibbar )
@@ -322,15 +337,19 @@ namespace DbaseFrame
 
             }
             catch ( COMException comEx )
-            {
+            {   // z. B. beschädigt / kein Excel-Format; bei abgeschnittenen Dateien nur "0x800A03EC"
+                lastError = $"Excel-Datei kann nicht geöffnet werden ( beschädigt oder kein Excel-Format ): {fileName}\n"
+                    + comEx.Message;
                 Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
                 return ( false );
-            }
+            }   // Ende: z. B. beschädigt / kein Excel-Format
             catch ( Exception ex )
             {
+                lastError = $"Excel-Datei kann nicht geöffnet werden: {fileName}\n" + ex.Message;
                 Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
                 return ( false );
             }   // end: try workbook
+            lastError = "";
             workbookOpen = true;
             return ( true );
 
