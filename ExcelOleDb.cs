@@ -39,7 +39,8 @@ namespace DbaseFrame
         ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
         ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException;
         ///           relativer Dateiname → voller Pfad; Lesen ohne gewählte Tabelle → klare Meldung;
-        ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen )
+        ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen ) und prüft vorher die
+        ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -220,6 +221,28 @@ namespace DbaseFrame
             return ( sheets[ sheetNumber ] );
 
         }   // Ende: string SelectedTable
+
+        /// <summary>
+        /// Höchstlänge eines Textes beim Schreiben: Spaltentyp VARCHAR des ACE-Treibers ( mit Excel geprüft 27.11.26 )
+        /// </summary>
+        public const int maxTextLength = 255;
+
+        /// <summary>
+        /// Prüft Texte vor dem Schreiben auf die Höchstlänge 'maxTextLength'.
+        /// </summary>
+        /// <param name="rows">die Zeilen</param>
+        /// <param name="funktion">aufrufende Funktion für die Meldung</param>
+        /// <exception cref="ArgumentException">ein Text ist zu lang, mit Position ( spalte, zeile ) ab 0</exception>
+        static void CheckTextLength( List<string[]> rows, string funktion )
+        {
+            for ( int y = 0; y < rows.Count; y++ )
+                for ( int x = 0; x < rows[ y ].Length; x++ )
+                    if ( ( rows[ y ][ x ]?.Length ?? 0 ) > maxTextLength )
+                        throw new ArgumentException( "ExcelOleDb." + funktion + ": Text an ( " + x + ", " + y
+                            + " ) hat " + rows[ y ][ x ].Length + " Zeichen, höchstens " + maxTextLength
+                            + " sind möglich. Nichts geschrieben." );
+
+        }   // Ende: void CheckTextLength
 
         // --------------------------------------------     the routines
 
@@ -524,6 +547,9 @@ namespace DbaseFrame
                 Message.Show( "No data to write, abort!" );
                 return;
             }
+            // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
+            // die Zieldatei blieb mit leerer Tabelle zurück )
+            CheckTextLength( valuesString, "WriteListStringToNewTarget" );
 
             bool overwrite = false;
             while ( !overwrite )
