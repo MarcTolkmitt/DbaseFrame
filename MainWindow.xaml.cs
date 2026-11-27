@@ -563,7 +563,11 @@ namespace DbaseFrame
             InteropClose( );
             dbfInterop = new ExcelInterop( "", false, headers, readOnly );
             if ( dbfInterop.workbookOpen )
-                Display( $"Interop: geöffnet {dbfInterop.fileName} ( Kopfzeile: {headers}, nur lesen: {readOnly} )" );
+            {   // geöffnet; nur lesen kann Excel erzwingen ( Datei woanders geöffnet ), dann Hinweis
+                Display( $"Interop: geöffnet {dbfInterop.fileName} ( Kopfzeile: {headers}, nur lesen: {dbfInterop.readOnly} )" );
+                if ( dbfInterop.lastError != "" )
+                    Display( "Interop: " + dbfInterop.lastError );
+            }   // Ende: geöffnet
             else
             {   // abgebrochen oder Fehler: Grund anzeigen
                 Display( "Interop: keine Datei geöffnet – " + dbfInterop.lastError );

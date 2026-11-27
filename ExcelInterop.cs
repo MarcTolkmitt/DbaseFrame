@@ -50,7 +50,9 @@ namespace DbaseFrame
         ///           Konstruktor mit doReadOnly ( schreibgeschützt öffnen, beim Beenden nicht speichern ),
         ///           workbookOpen; Blätter 0-basiert ( GetSheetName, SetSheetName, NewSheet ), SelectSheet,
         ///           Lesen und Schreiben im gewählten Blatt;
-        ///           Grund eines gescheiterten Öffnens in 'lastError' ( fehlende / beschädigte Datei, Excel fehlt )
+        ///           Grund eines gescheiterten Öffnens in 'lastError' ( fehlende / beschädigte Datei, Excel fehlt );
+        ///           Öffnen ohne unsichtbare Rückfragen ( kennwortgeschützte Datei ließ das Programm hängen ),
+        ///           relativer Dateiname → voller Pfad
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -83,7 +85,8 @@ namespace DbaseFrame
         public bool workbookOpen = false;
 
         /// <summary>
-        /// Grund, warum Excel nicht startete oder die Mappe nicht geöffnet wurde ( "" = kein Fehler )
+        /// Grund, warum Excel nicht startete oder die Mappe nicht geöffnet wurde ( "" = kein Fehler );
+        /// bei geöffneter Mappe ein Hinweis, z. B. dass sie gesperrt war und nur zum Lesen geöffnet wurde
         /// </summary>
         public string lastError = "";
 
@@ -320,36 +323,68 @@ namespace DbaseFrame
             workbookOpen = false;
             if ( excelApp == null )
                 return ( false );   // Excel ließ sich nicht starten, Grund steht schon in lastError
+            // relativer Name → voller Pfad: Excel löst relative Namen in seinem eigenen Ordner auf ( Dokumente ),
+            // nicht im Arbeitsordner des Programms
+            if ( fileName != "" )
+                fileName = Path.GetFullPath( fileName );
             if ( !File.Exists( fileName ) )
             {   // fehlende Datei klar melden ( Excels Meldung dazu ist missverständlich )
                 lastError = $"Excel-Datei nicht gefunden: {fileName}";
                 Console.WriteLine( lastError );
                 return ( false );
             }   // Ende: fehlende Datei klar melden
+            /* Keine unsichtbaren Rückfragen beim Öffnen, Excel läuft unsichtbar und würde ewig warten:
+             *  - kennwortgeschützte Datei: ohne Kennwort fragt Excel danach → Platzhalter-Kennwort, dann meldet
+             *    Excel einen Fehler ( bei ungeschützten Dateien wird das Kennwort nicht beachtet )
+             *  - Schreibschutz-Kennwort ebenso ( beschreibbar öffnen scheitert dann, nur lesen geht ),
+             *    Empfehlung "schreibgeschützt öffnen", Verknüpfungen aktualisieren
+             *  - DisplayAlerts aus für alle übrigen Meldungen, danach wie vorher
+             *  - das Platzhalter-Kennwort hat höchstens 15 Zeichen: mit 16 und mehr scheitert jede Datei
+             *    ( mit Excel geprüft 27.11.26 )
+            */
+            const string keinKennwort = "DbF-kein-KW";
+            bool alteRueckfragen = excelApp.DisplayAlerts;
             try
             {
+                excelApp.DisplayAlerts = false;
                 // Datei öffnen; bei readOnly schreibgeschützt ( 27.11.26: vorher immer beschreibbar )
                 workbook = excelApp.Workbooks.Open(
                     fileName,
+                    UpdateLinks: 0,
                     ReadOnly: readOnly,
-                    Editable: !readOnly
+                    Password: keinKennwort,
+                    WriteResPassword: keinKennwort,
+                    IgnoreReadOnlyRecommended: true,
+                    Editable: !readOnly,
+                    Notify: false
                 );
 
             }
             catch ( COMException comEx )
-            {   // z. B. beschädigt / kein Excel-Format; bei abgeschnittenen Dateien nur "0x800A03EC"
-                lastError = $"Excel-Datei kann nicht geöffnet werden ( beschädigt oder kein Excel-Format ): {fileName}\n"
-                    + comEx.Message;
+            {   // z. B. beschädigt, kein Excel-Format, kennwortgeschützt; Excel meldet dann oft nur "0x800A03EC"
+                lastError = "Excel-Datei kann nicht geöffnet werden ( beschädigt, kein Excel-Format, "
+                    + ( readOnly ? "kennwortgeschützt" : "kennwort- oder schreibgeschützt" ) + " ): "
+                    + $"{fileName}\n" + comEx.Message;
                 Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
                 return ( false );
-            }   // Ende: z. B. beschädigt / kein Excel-Format
+            }   // Ende: z. B. beschädigt, kein Excel-Format, kennwortgeschützt
             catch ( Exception ex )
             {
                 lastError = $"Excel-Datei kann nicht geöffnet werden: {fileName}\n" + ex.Message;
                 Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
                 return ( false );
             }   // end: try workbook
+            finally
+            {   // Rückfragen wie vorher
+                excelApp.DisplayAlerts = alteRueckfragen;
+            }   // Ende: Rückfragen wie vorher
             lastError = "";
+            if ( !readOnly && workbook.ReadOnly )
+            {   // woanders geöffnet ( gesperrt ): Excel öffnet dann ohne Rückfrage nur zum Lesen
+                readOnly = true;
+                lastError = $"Excel-Datei ist woanders geöffnet, nur zum Lesen geöffnet: {fileName}";
+                Console.WriteLine( lastError );
+            }   // Ende: woanders geöffnet ( gesperrt )
             workbookOpen = true;
             return ( true );
 

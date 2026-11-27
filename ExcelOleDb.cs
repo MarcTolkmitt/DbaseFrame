@@ -37,7 +37,8 @@ namespace DbaseFrame
         /// last edit: 27.11.26
         /// 27.11.26: Lesen über OpenSource( ): fehlende Datei → FileNotFoundException ( vorher legte der
         ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
-        ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException
+        ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException;
+        ///           relativer Dateiname → voller Pfad
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -79,9 +80,9 @@ namespace DbaseFrame
                 ok = DialogFileNameLoad( ref fileName );
             if ( fileName != "" )
             {
-                sourceFile = fileName;
+                sourceFile = Path.GetFullPath( fileName );  // relativer Name → voller Pfad, eindeutig
                 connectionString =
-                    conStringStart + fileName + conStringEnd;
+                    conStringStart + sourceFile + conStringEnd;
                 if ( useHeader )
                     connectionString += withHeader;
                 else 
@@ -181,7 +182,7 @@ namespace DbaseFrame
         /* Die Datei hat zu passen, sonst Fehlermeldung:
          *  - fehlt sie, legt der ACE-Treiber beim Öffnen stillschweigend eine neue, leere Mappe an
          *    → vorher prüfen, FileNotFoundException
-         *  - ist sie beschädigt oder kein Excel-Format, wirft Open( ) eine OleDbException
+         *  - ist sie beschädigt, kein Excel-Format, kennwortgeschützt oder woanders gesperrt, wirft Open( ) eine OleDbException
          *    ( "Die externe Tabelle hat nicht das erwartete Format." ) → InvalidDataException mit Dateinamen
         */
         /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
@@ -198,7 +199,7 @@ namespace DbaseFrame
             {   // beschädigt oder kein Excel-Format
                 conn.Dispose( );
                 throw new InvalidDataException(
-                    $"Excel-Datei kann nicht gelesen werden ( beschädigt oder kein Excel-Format ): {sourceFile}\n"
+                    $"Excel-Datei kann nicht gelesen werden ( beschädigt, kein Excel-Format, kennwortgeschützt oder woanders geöffnet ): {sourceFile}\n"
                     + ex.Message, ex );
             }   // Ende: beschädigt oder kein Excel-Format
             return ( conn );
