@@ -1,4 +1,4 @@
-available as '**DbaseFrame.1.0.4.nupkg**'.
+available on nuget.org as package '**DbaseFrame**' ( this README describes package version **1.0.8**, state 27.11.2026; see chapter 5 for the current behaviour ).
 
 
 
@@ -67,7 +67,11 @@ Enough documentation is not to be found. AI answers change from day to day and y
 
 Very annoying is the fact that written 'doubles' are not recognized as 'doubles' from Excel but they seem to be 'string'. I couldn't find the solution for that problem.
 
+**Update 27.11.2026:** the cause is found and fixed. Closing and reopening the connection between 'CREATE TABLE' and 'INSERT INTO' makes the ACE driver store every number as text. Keeping the connection open writes real numbers ( checked in the xlsx file itself ).
+
 Second problem for correctness is the produced table from writing is seen in Excel as one table ( good ) but if you read them in with this code two tables are found. The next barrier for the usability of **OleDb**.
+
+**Update 27.11.2026:** the reason: 'CREATE TABLE' makes the ACE driver create a sheet 'newStrings' **and** a named range 'newStrings' on it ( seen in the xlsx file ). Reading lists both: 'newStrings' ( the named range ) and 'newStrings$' ( the sheet ). Both deliver the same data, you can choose either.
 
 I will let this code stay as good example but only for the interest. You could use it as dirty version of data management but **Interop** there and many people have the Office suite via their OneDrive like i do. 
 
@@ -80,10 +84,12 @@ An example procedure for testing the class is given here.
 3. **'read table names by number'** show how to query the table's name with a index number.
 4. **'read chosen table as List of string[]'** will read any cell of the table as a 'string'.
 5. **'read the chosen table as List of double[]'** will read the cells as double if they are of that type or you will see a 0 ( standard initialization ). Good for buffering data in with no exception.
+   **Update 27.11.2026:** the data have to fit now: empty cells give 0, TRUE/FALSE 1/0, a number as text ( "1,5" ) is converted, but any other text gives an error message with row and column. Before, text was silently 0.
 6. **'write the read double-list into a new file'** will create a new file with the data in it.
 7. **'write the read string-list into a new file'** will do the same for the read string values.
+   **Update 27.11.2026:** both report the result ( written / nothing written ), a cancelled dialog writes nothing, and with headers the read column names become the column names of the new table.
 
-The demo is using one instance of the **'DbaseFrameExcel'** class for the whole show. While i use internally lists for the read data you easily can use arrays as they are sort of ambiguous towards each other.
+The demo is using one instance of the **'ExcelOleDb'** class for the whole show. While i use internally lists for the read data you easily can use arrays as they are sort of ambiguous towards each other.
 
 ```c#
 readExcel.ReadStringList();
@@ -126,9 +132,11 @@ I found out that my Access version ( from the One-Drive-Abo ) is not taking floa
 
 That showed up one limitation of Access: you can't change a field type after creating the table. A wrong import locks your whole data set .
 
-I read that Microsoft did drop OleDb years ago and didn't continue to develop it further. But with .NET 8.x it is still there and thus should work. While the shortcut ACE in the drivers name would mean 'Access Connectivity Engine' it is long from working - why do they add it to the system then?
+I read that Microsoft did drop OleDb years ago and didn't continue to develop it further. But with .NET 8.x it is still there and thus should work ( **update:** the project now targets .NET 10, 'System.Data.OleDb' 11.0.0, still working ). While the shortcut ACE in the drivers name would mean 'Access Connectivity Engine' it is long from working - why do they add it to the system then?
 
 For completeness i let the stuff stay here.
+
+**Update 27.11.2026:** reading Access works ( 'AccessOleDb', tested with the files 'Access_Test.accdb' and '.mdb' ): every number type ( also Int16, Decimal, Byte, date ) is read, text in a number column gives an error message, the table choice shows only your own tables ( no 'MSys...' system tables ). Writing works too: the ACE driver cannot create a new Access file via OleDb ( "file not found" ), so the new file is created with **ADOX** ( comes with the ACE driver ) and then filled. Access keeps trailing spaces in texts, Excel via ACE does not.
 
 
 
@@ -165,84 +173,45 @@ Because i can use this without the ugly SQL-strings i just went to a different o
 
 The bigger part works on a chosen or given workbook - the second smaller part just stores data in a new one.
 
-There is no try/catch-block in the functions as you only need it at the beginning opening the file and afterwards:
+The try/catch-block is needed at the beginning when opening the file ( **update 27.11.2026:** the reason of a failed opening is kept in 'lastError': missing, locked, damaged, password protected; and every possible question of the invisible Excel is switched off beforehand, otherwise the program would wait forever ):
 
 ```c#
-            try
-            {
-                // Datei öffnen
-                workbook = excelApp.Workbooks.Open(
-                    fileName,
-                    ReadOnly: false,
-                    Editable: true
-                );
-
-            }
-            catch ( COMException comEx )
-            {
-                Console.WriteLine( "Excel-Interop-Fehler: " + comEx.Message );
-                return ( false );
-            }
-            catch ( Exception ex )
-            {
-                Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
-                return ( false );
-            }   // end: try workbook
-            return ( true );
-
+            ExcelInterop excel = new ExcelInterop( "", false, doUseHeader: true, doReadOnly: true );
+            if ( !excel.workbookOpen )
+                Console.WriteLine( "not opened: " + excel.lastError );
 ```
 
-Like before you can read the contents of the excel file as type-, string- or double into the classes internal fields but this time i use 2d arrays. For the safety every cell needs to be checked if the type is the correct one:
+Like before you can read the contents of the excel file as type-, string- or double into the classes internal fields but this time i use 2d arrays. For the safety every cell needs to be checked if the type is the correct one. **Update 27.11.2026:** all values of the data rectangle are fetched with **one** access ( 2000 x 5 cells: 110 ms instead of 23 s cell by cell ) and checked afterwards one by one. The arrays are **Matrix( x, y ) = point( x, y )**: first index column, second index row; Excel's own order [ row, column ] is only used at the hand-over.
 
 ```c#
-            // a dream would be the next line, but it is not save for input
-            // valuesTypesArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
-
-            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
-            {
-                string temp;
-                for ( int colInd = startCol; colInd < endCol; colInd++ )
-                {
-                    string colName = GetColumnFromNumber( colInd );
-                    // beware: the cell index works like this coming line
-                    temp =
-                        worksheet.Cells[ rowInd, colName].GetType().ToString()
-                            ?? string.Empty;
-
-                    valuesTypesArray[ colInd, rowInd ] =  temp ;
-
-                }   // end: for ( int colInd
-
-            }   // end: for ( int rowInd
-
+            excel.SelectSheet( 0 );          // sheets count from 0
+            excel.ReadDoubles( );            // text instead of a number -> error message with cell address
+            double[,] data = excel.valuesDoubleArray;   // data[ x, y ]
+            string[] names = excel.headers;              // the header row ( with doUseHeader )
 ```
 
-In writing the data to an excel workbook the strength of the interop classes can be seen:
-
-```c#
-            // calculate the Excel range to write to
-            int colCount = valuesStringArray.GetLength( 0 );
-            int rowCount = valuesStringArray.GetLength( 1 );
-
-            int startCol = 1;
-            int endCol = startCol + colCount - 1;
-            int startRow = 1;
-            int endRow = startRow + rowCount - 1;
-
-            // the strings
-            string xDim1 = GetColumnFromNumber( startCol );
-            string xDim2 = GetColumnFromNumber( endCol );
-            string yDim1 = startRow.ToString();
-            string yDim2 = endRow.ToString();
-
-			// send the data
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
-
-```
-
-You see the most complex thing of this operation is to setup the Range boundaries for Excel.
+In writing the data to an excel workbook the strength of the interop classes can be seen: one assignment of 'Value2' for the whole range. **Update 27.11.2026:** 'WriteDoublesToNewTarget' / 'WriteStringsToNewTarget' really create and save the new file ( with the header row, if read with headers ), return false if the dialog is cancelled, and Excel is ended completely by 'ExcelInteropQuit( )' ( every COM object is released, otherwise Excel keeps running ).
 
 
+
+### <u>5. State 27.11.2026 ( package 1.0.8 )</u>
+
+**The data have to fit, otherwise there is an error message** – nothing is bent silently:
+
+- an empty sheet, a sheet with only a header row, an empty first/last row or column of the data rectangle
+- text where a number is expected ( with cell address or row and column )
+- NaN or infinity when writing, texts longer than 255 characters when writing with OleDb
+- empty cells inside the data become "" or 0, TRUE/FALSE become 1/0, Excel errors ( #DIV/0! ) become 0 or their text
+
+**Reading is all or nothing:** if a read fails, its result field is empty ( not half filled, not the data of an earlier read ), and writing without data reports it.
+
+**Files:** missing, damaged, password protected or locked files give an understandable message. A file locked completely by another program used to crash the whole program inside the ACE driver; this is now checked beforehand.
+
+**Classes and versions:** 'ExcelInterop' 1.0.8 ( Excel via COM, needs Excel ), 'ExcelOleDb' 1.0.14 and 'AccessOleDb' 1.0.6 ( ACE driver ). The package number is kept in the project file; 'PackageInfo' delivers version and commit, the demo program shows them at the start.
+
+**Known limit of the ACE driver:** it guesses the type of a column from the first 8 rows. Text appearing later in a number column comes in as empty ( 0 ). For strict checking of every cell use 'ExcelInterop'.
+
+**Demo program:** menus 'OleDb Excel', 'Interop Excel' ( 14 items ) and 'OleDb Access'; every error is shown in the window and the program goes on. Test files: 'Parable_Demo.xlsx', 'StringGolfer.xlsx' ( texts ), 'Defekt_Test.xlsx' ( damaged ), 'Access_Test.accdb'.
 
 ### <u>14.Donations</u>
 
