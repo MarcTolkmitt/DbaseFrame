@@ -38,7 +38,8 @@ namespace DbaseFrame
         /// 27.11.26: Lesen über OpenSource( ): fehlende Datei → FileNotFoundException ( vorher legte der
         ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
         ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException;
-        ///           relativer Dateiname → voller Pfad
+        ///           relativer Dateiname → voller Pfad; Lesen ohne gewählte Tabelle → klare Meldung;
+        ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -206,6 +207,20 @@ namespace DbaseFrame
 
         }   // Ende: OleDbConnection OpenSource
 
+        /// <summary>
+        /// Name der gewählten Tabelle für das Lesen. Ohne gültige Wahl eine klare Fehlermeldung
+        /// ( vorher IndexOutOfRangeException ).
+        /// </summary>
+        /// <returns>Tabellenname, z. B. "Tabelle1$"</returns>
+        string SelectedTable( )
+        {
+            if ( ( sheetNumber < 0 ) || ( sheetNumber >= sheets.Length ) || string.IsNullOrEmpty( sheets[ sheetNumber ] ) )
+                throw new InvalidOperationException(
+                    "Keine Tabelle gewählt: zuerst ReadTableNames( ) aufrufen oder 'sheets' und 'sheetNumber' setzen." );
+            return ( sheets[ sheetNumber ] );
+
+        }   // Ende: string SelectedTable
+
         // --------------------------------------------     the routines
 
         /// <summary>
@@ -218,7 +233,7 @@ namespace DbaseFrame
         {
             using ( OleDbConnection conn = OpenSource( ) )
             {
-                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
                 valuesTypes = new List<string[]>();
@@ -251,7 +266,7 @@ namespace DbaseFrame
         {
             using ( OleDbConnection conn = OpenSource( ) )
             {
-                OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
                 valuesString = new List<string[]>();
@@ -281,7 +296,7 @@ namespace DbaseFrame
         {
             using ( OleDbConnection conn = OpenSource( ) )
             {
-                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{sheets[ sheetNumber ]}]", conn);
+                OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 
                 valuesDouble = new List<double[]>();
@@ -532,7 +547,8 @@ namespace DbaseFrame
 
             }
             // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
+            // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen )
+            int columns =  valuesString[0].Length;
             string tableCreateColumns = "( ";
             string tableInsertColumns = "( ";
             switch ( columns )
