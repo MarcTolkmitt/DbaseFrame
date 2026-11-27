@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <Title>DbaseFrame</Title>
     <Authors>Marc Tolkmitt</Authors>
-    <Description>Project to gain usage of Excel-,Access- and Sql-data with C#. This project serves as example WPF-program and source for the utility classes.</Description>
+    <Description>Project to gain usage of Excel- and Access-data with C#. This project serves as example WPF-program and source for the utility classes.</Description>
     <PackageProjectUrl>https://github.com/MarcTolkmitt/DbaseFrame</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/MarcTolkmitt/DbaseFrame</RepositoryUrl>
@@ -39,8 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="8.0.0" />
-    <PackageReference Include="System.Data.Odbc" Version="11.0.0" />
+    <!-- 27.11.26: Microsoft.Data.SqlClient und System.Data.Odbc entfernt ( im Code unbenutzt; 6 statt 19 DLLs ) -->
     <PackageReference Include="System.Data.OleDb" Version="11.0.0" />
   </ItemGroup>
 

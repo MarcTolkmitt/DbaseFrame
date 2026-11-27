@@ -19,7 +19,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Data.Odbc;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
@@ -44,7 +43,8 @@ namespace DbaseFrame
         ///           Tabelle ohne Datenzeile → Fehlermeldung;
         ///           Schreiben neu ( Entscheidung des Nutzers „mit ADOX“ ): neue Datei per ADOX ( OleDb kann keine anlegen,
         ///           vorher scheiterte jeder Aufruf ), Write…ToNewTarget liefern bool, ChooseTarget mit Abbruch, Spaltennamen
-        ///           aus 'headers', Spaltenzahl der Texte richtig, Textlänge vorher geprüft, Verbindung bleibt offen
+        ///           aus 'headers', Spaltenzahl der Texte richtig, Textlänge vorher geprüft, Verbindung bleibt offen;
+        ///           ohne System.Data.Odbc ( wurde nicht mehr gebraucht, Paket entfernt )
         /// </summary>
         Version version = new Version( "1.0.6" );
         /*
