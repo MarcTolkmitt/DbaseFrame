@@ -12,13 +12,13 @@
     <PackageProjectUrl>https://github.com/MarcTolkmitt/DbaseFrame</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/MarcTolkmitt/DbaseFrame</RepositoryUrl>
-    <PackageTags>OleDB, Excel, C#</PackageTags>
-    <AssemblyVersion>1.0.2</AssemblyVersion>
+    <PackageTags>OleDB, Excel, Interop, C#</PackageTags>
+    <AssemblyVersion>1.0.5</AssemblyVersion>
     <PackageLicenseFile>Apache.txt</PackageLicenseFile>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Copyright></Copyright>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
   </PropertyGroup>
 
   <ItemGroup>
