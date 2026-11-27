@@ -46,7 +46,8 @@ namespace DbaseFrame
         ///           Parable_Demo.xlsx aus dem Arbeitsordner; WriteListDoubleToNewTarget ohne die zwei MessageBoxen
         ///           mit dem SQL-Text ( Testausgabe, wie schon in WriteListStringToNewTarget );
         ///           Write…ToNewTarget liefern bool ( geschrieben / nichts geschrieben ); neues Feld 'headers'
-        ///           ( Spaltennamen beim Lesen ), bei useHeader Spaltennamen der neuen Tabelle ( vorher 0, 1, 2, ... )
+        ///           ( Spaltennamen beim Lesen ), bei useHeader Spaltennamen der neuen Tabelle ( vorher 0, 1, 2, ... );
+        ///           ganz gesperrte Datei → IOException ( CheckReadable ), vorher Absturz im ACE-Treiber
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -223,6 +224,7 @@ namespace DbaseFrame
                 throw new InvalidOperationException( "ExcelOleDb: keine Datei gewählt ( " + lastError + " )." );
             if ( !File.Exists( sourceFile ) )
                 throw new FileNotFoundException( $"Excel-Datei nicht gefunden: {sourceFile}", sourceFile );
+            CheckReadable( sourceFile );
             OleDbConnection conn = new OleDbConnection( connectionString );
             try
             {
@@ -238,6 +240,33 @@ namespace DbaseFrame
             return ( conn );
 
         }   // Ende: OleDbConnection OpenSource
+
+        /// <summary>
+        /// Prüft vor dem Öffnen mit dem ACE-Treiber, ob sich die Datei lesen lässt.
+        /// </summary>
+        /* Grund ( 27.11.26, gemessen ): Hält ein anderer Prozess die Datei ohne Lesefreigabe offen
+         * ( FileShare.None ), stürzt der ACE-Treiber in OleDbConnection.Open( ) mit einer Zugriffsverletzung
+         * ( 0xC0000005 ) ab; das beendet das ganze Programm und lässt sich nicht abfangen.
+         * Eine normal in Excel geöffnete Datei besteht die Prüfung; dafür meldet sich der Treiber selbst
+         * ( "bereits exklusiv geöffnet", siehe OpenSource ).
+        */
+        /// <param name="datei">voller Dateiname</param>
+        /// <exception cref="IOException">Datei gesperrt oder ohne Leserecht</exception>
+        internal static void CheckReadable( string datei )
+        {
+            try
+            {
+                using ( FileStream probe = new FileStream( datei, FileMode.Open, FileAccess.Read, FileShare.ReadWrite ) )
+                {   // nur öffnen und gleich schließen
+                }   // Ende: nur öffnen und gleich schließen
+            }
+            catch ( Exception ex ) when ( ex is IOException || ex is UnauthorizedAccessException )
+            {   // gesperrt: verständliche Meldung statt Absturz im Treiber
+                throw new IOException( $"Datei ist gesperrt oder nicht lesbar ( woanders ohne Lesefreigabe geöffnet? ): {datei}\n"
+                    + ex.Message, ex );
+            }   // Ende: gesperrt
+
+        }   // Ende: void CheckReadable
 
         /// <summary>
         /// Name der gewählten Tabelle für das Lesen. Ohne gültige Wahl eine klare Fehlermeldung

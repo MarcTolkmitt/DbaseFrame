@@ -60,7 +60,8 @@ namespace DbaseFrame
         ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException;
         ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings );
         ///           'headers' ebenso: zu Beginn leer, nur nach fehlerfreiem Lesen gesetzt ( ReadHeaders liefert zurück );
-        ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie )
+        ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie );
+        ///           ganz gesperrte Datei → lastError "gesperrt" ( vorher "beschädigt, kein Excel-Format" )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -353,6 +354,16 @@ namespace DbaseFrame
                 Console.WriteLine( lastError );
                 return ( false );
             }   // Ende: fehlende Datei klar melden
+            try
+            {   // ganz gesperrte Datei klar melden ( 27.11.26: Excel nannte sie "beschädigt, kein Excel-Format" )
+                ExcelOleDb.CheckReadable( fileName );
+            }
+            catch ( IOException ioEx )
+            {
+                lastError = ioEx.Message;
+                Console.WriteLine( lastError );
+                return ( false );
+            }   // Ende: ganz gesperrte Datei klar melden
             /* Keine unsichtbaren Rückfragen beim Öffnen, Excel läuft unsichtbar und würde ewig warten:
              *  - kennwortgeschützte Datei: ohne Kennwort fragt Excel danach → Platzhalter-Kennwort, dann meldet
              *    Excel einen Fehler ( bei ungeschützten Dateien wird das Kennwort nicht beachtet )
