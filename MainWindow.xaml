@@ -8,7 +8,7 @@
         Title="MainWindow" Height="1000" Width="800" Left="0" Top="0" Closing="Window_Closing">
 
     <DockPanel LastChildFill="False" HorizontalAlignment="Stretch" Height="NaN" Margin="0,0,0,0" VerticalAlignment="Stretch" Width="NaN">
-        <Menu x:Name="mainMenu" Width="800" DockPanel.Dock="Top" Height="20">
+        <Menu x:Name="mainMenu" DockPanel.Dock="Top" Height="20">
             <MenuItem Header="_File">
                 <MenuItem Header="_Quit" Click="MenuQuit_Click"/>
             </MenuItem>
@@ -36,6 +36,40 @@
                           Header="write the read double-list to a new file"/>
                 <MenuItem x:Name="_mItemWriteListStringToExcel"
                           Header="write the read string-list to a new file" Click="_mItemWriteListStringToExcel_Click"/>
+            </MenuItem>
+            <MenuItem Header="Interop Excel">
+                <MenuItem x:Name="_mItemInteropOpenNH"
+                    Header="open Excel file by dialog ( no headers, read only )" Click="_mItemInteropOpenNH_Click"/>
+                <MenuItem x:Name="_mItemInteropOpenWH"
+                    Header="open Excel file by dialog ( with headers, read only )" Click="_mItemInteropOpenWH_Click"/>
+                <MenuItem x:Name="_mItemInteropOpenWrite"
+                    Header="open Excel file by dialog for writing ( with headers )" Click="_mItemInteropOpenWrite_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemInteropSheetNames"
+                    Header="show the sheet names" Click="_mItemInteropSheetNames_Click"/>
+                <MenuItem x:Name="_mItemInteropChooseSheet"
+                    Header="choose the sheet by dialog" Click="_mItemInteropChooseSheet_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemInteropTypes"
+                    Header="read the chosen sheet as matrix of types" Click="_mItemInteropTypes_Click"/>
+                <MenuItem x:Name="_mItemInteropStrings"
+                    Header="read the chosen sheet as matrix of strings" Click="_mItemInteropStrings_Click"/>
+                <MenuItem x:Name="_mItemInteropDoubles"
+                    Header="read the chosen sheet as matrix of doubles" Click="_mItemInteropDoubles_Click"/>
+                <MenuItem x:Name="_mItemInteropRange"
+                    Header="read the range A1:C3 as strings" Click="_mItemInteropRange_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemInteropWriteDoubles"
+                    Header="write the read doubles to a new file" Click="_mItemInteropWriteDoubles_Click"/>
+                <MenuItem x:Name="_mItemInteropWriteStrings"
+                    Header="write the read strings to a new file" Click="_mItemInteropWriteStrings_Click"/>
+                <MenuItem x:Name="_mItemInteropAppend"
+                    Header="append a demo row ( 1, 2, 3 ) and save" Click="_mItemInteropAppend_Click"/>
+                <MenuItem x:Name="_mItemInteropNewSheet"
+                    Header="new sheet 'Demo' with a demo matrix and save" Click="_mItemInteropNewSheet_Click"/>
+                <Separator/>
+                <MenuItem x:Name="_mItemInteropClose"
+                    Header="close the file and Excel" Click="_mItemInteropClose_Click"/>
             </MenuItem>
             <MenuItem Header="OleDb Access">
                 <MenuItem x:Name="_mItemAccesLoad"

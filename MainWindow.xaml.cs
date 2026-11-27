@@ -30,12 +30,16 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 55.11.24
+        /// last edit: 27.11.26
+        /// 27.11.26: Menü "Interop Excel" führt ExcelInterop vor
         /// </summary>
-        Version version = new Version( "1.0.5" );
+        Version version = new Version( "1.0.6" );
 
         ExcelOleDb dbfExcel = null!;
         AccessOleDb dbfAccess = null!;
+
+        // Excel über Interop; null, solange keine Datei geöffnet ist
+        ExcelInterop? dbfInterop = null;
 
         /// <summary>
         /// standard constructor
@@ -163,6 +167,8 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void Window_Closing( object sender, System.ComponentModel.CancelEventArgs e )
         {
+            // Excel beenden, falls über Interop noch eine Datei offen ist ( sonst bleibt Excel im Hintergrund )
+            InteropClose( );
 
         }   // end: private void Window_Closing
 
@@ -446,6 +452,245 @@ namespace DbaseFrame
         {
 
         }
+
+        // ----------------------------------------------   EXCEL Interop ( 27.11.26 )
+
+        /* Vorführung von ExcelInterop
+         *  - Matrizen sind Matrix( x, y ): erster Index Spalte, zweiter Zeile; angezeigt wird Zeile für Zeile
+         *  - die Daten haben zu passen: Fehlermeldungen der Klasse ( z. B. leere Rand-Zeile ) werden angezeigt
+         *  - Excel läuft unsichtbar im Hintergrund, bis "close" oder das Fenster geschlossen wird
+        */
+
+        /// <summary>
+        /// Hilfsfunktion: Matrix( x, y ) Zeile für Zeile als Text.
+        /// </summary>
+        /// <param name="matrix">Matrix( x, y )</param>
+        /// <returns>eine Zeile Text je Zeile der Matrix</returns>
+        public string MatrixToString<T>( T[,] matrix )
+        {
+            string text = "";
+            for ( int y = 0; y < matrix.GetLength( 1 ); y++ )
+            {   // je Zeile
+                var zeile = new List<string>( );
+                for ( int x = 0; x < matrix.GetLength( 0 ); x++ )
+                    zeile.Add( matrix[ x, y ]?.ToString( ) ?? "" );
+                text += $" [ {string.Join( ", ", zeile )} ]\n";
+            }   // Ende: je Zeile
+            return ( text );
+
+        }   // Ende: string MatrixToString
+
+        /// <summary>
+        /// Hilfsfunktion: Datei schließen und Excel beenden, falls offen.
+        /// </summary>
+        void InteropClose( )
+        {
+            if ( dbfInterop != null )
+            {   // offene Mappe
+                dbfInterop.ExcelInteropQuit( );
+                dbfInterop = null;
+                Display( "Interop: Datei geschlossen, Excel beendet" );
+            }   // ende: offene Mappe
+
+        }   // Ende: void InteropClose
+
+        /// <summary>
+        /// Hilfsfunktion: Datei per Dialog öffnen ( vorher geöffnete wird geschlossen ).
+        /// </summary>
+        /// <param name="headers">erste Zeile als Kopfzeile</param>
+        /// <param name="readOnly">nur lesen</param>
+        void InteropOpen( bool headers, bool readOnly )
+        {
+            InteropClose( );
+            dbfInterop = new ExcelInterop( "", false, headers, readOnly );
+            if ( dbfInterop.workbookOpen )
+                Display( $"Interop: geöffnet {dbfInterop.fileName} ( Kopfzeile: {headers}, nur lesen: {readOnly} )" );
+            else
+            {   // abgebrochen oder Fehler
+                Display( "Interop: keine Datei geöffnet" );
+                dbfInterop.ExcelInteropQuit( );
+                dbfInterop = null;
+            }   // ende: abgebrochen oder Fehler
+
+        }   // Ende: void InteropOpen
+
+        /// <summary>
+        /// Hilfsfunktion: führt eine Aktion mit der offenen Datei aus und zeigt Fehlermeldungen an.
+        /// </summary>
+        /// <param name="aktion">die Aktion</param>
+        void InteropDo( Action<ExcelInterop> aktion )
+        {
+            if ( dbfInterop == null )
+            {   // nichts offen
+                Display( "Interop: zuerst eine Datei öffnen" );
+                return;
+            }   // ende: nichts offen
+            try
+            {
+                aktion( dbfInterop );
+            }
+            catch ( Exception ex )
+            {   // z. B. die Daten passen nicht
+                Display( "Interop-Fehler: " + ex.Message );
+            }   // Ende: z. B. die Daten passen nicht
+
+        }   // Ende: void InteropDo
+
+        private void _mItemInteropOpenNH_Click( object sender, RoutedEventArgs e )
+        {   // Dialog, ohne Kopfzeile, nur lesen
+            InteropOpen( false, true );
+
+        }   // end: _mItemInteropOpenNH_Click
+
+        private void _mItemInteropOpenWH_Click( object sender, RoutedEventArgs e )
+        {   // Dialog, mit Kopfzeile, nur lesen
+            InteropOpen( true, true );
+
+        }   // end: _mItemInteropOpenWH_Click
+
+        private void _mItemInteropOpenWrite_Click( object sender, RoutedEventArgs e )
+        {   // Dialog, mit Kopfzeile, beschreibbar
+            InteropOpen( true, false );
+
+        }   // end: _mItemInteropOpenWrite_Click
+
+        private void _mItemInteropSheetNames_Click( object sender, RoutedEventArgs e )
+        {   // alle Blattnamen, 0-basiert
+            InteropDo( x =>
+            {
+                for ( int nummer = 0; x.GetSheetName( nummer ) != ""; nummer++ )
+                    Display( $"Blatt {nummer}: {x.GetSheetName( nummer )}" );
+            } );
+
+        }   // end: _mItemInteropSheetNames_Click
+
+        private void _mItemInteropChooseSheet_Click( object sender, RoutedEventArgs e )
+        {   // Blatt im Dialog wählen
+            InteropDo( x =>
+            {
+                int nummer = x.ReadSheetNames( );
+                Display( nummer >= 0
+                    ? $"Interop: Blatt {nummer} '{x.GetSheetName( nummer )}' gewählt"
+                    : "Interop: kein Blatt gewählt, es gilt das aktive Blatt" );
+            } );
+
+        }   // end: _mItemInteropChooseSheet_Click
+
+        private void _mItemInteropTypes_Click( object sender, RoutedEventArgs e )
+        {   // Typen der Zellwerte ( ganzes Rechteck, ohne Prüfung )
+            InteropDo( x =>
+            {
+                x.ReadTypes( );
+                Display( "Typen ( Zeile für Zeile ):\n" + MatrixToString( x.valuesTypesArray ) );
+            } );
+
+        }   // end: _mItemInteropTypes_Click
+
+        private void _mItemInteropStrings_Click( object sender, RoutedEventArgs e )
+        {   // Texte, Kopfzeile getrennt
+            InteropDo( x =>
+            {
+                x.ReadStrings( );
+                Display( "Kopfzeile: " + ArrayToString( x.headers ) );
+                Display( "Texte ( Zeile für Zeile ):\n" + MatrixToString( x.valuesStringArray ) );
+            } );
+
+        }   // end: _mItemInteropStrings_Click
+
+        private void _mItemInteropDoubles_Click( object sender, RoutedEventArgs e )
+        {   // Zahlen, Kopfzeile getrennt
+            InteropDo( x =>
+            {
+                x.ReadDoubles( );
+                Display( "Kopfzeile: " + ArrayToString( x.headers ) );
+                Display( "Zahlen ( Zeile für Zeile ):\n" + MatrixToString( x.valuesDoubleArray ) );
+            } );
+
+        }   // end: _mItemInteropDoubles_Click
+
+        private void _mItemInteropRange_Click( object sender, RoutedEventArgs e )
+        {   // fester Bereich, X = Spalte, Y = Zeile
+            InteropDo( x =>
+            {
+                Display( "Bereich A1:C3:\n" + MatrixToString( x.ReadStrings( 1, 1, 3, 3 ) ) );
+            } );
+
+        }   // end: _mItemInteropRange_Click
+
+        private void _mItemInteropWriteDoubles_Click( object sender, RoutedEventArgs e )
+        {   // gelesene Zahlen in eine neue Datei ( Dialog )
+            InteropDo( x =>
+            {
+                if ( x.valuesDoubleArray == null )
+                {   // noch nichts gelesen
+                    Display( "Interop: zuerst die Zahlen lesen" );
+                    return;
+                }   // ende: noch nichts gelesen
+                x.WriteDoublesToNewTarget( );
+                Display( "Interop: Zahlen in eine neue Datei geschrieben" );
+            } );
+
+        }   // end: _mItemInteropWriteDoubles_Click
+
+        private void _mItemInteropWriteStrings_Click( object sender, RoutedEventArgs e )
+        {   // gelesene Texte in eine neue Datei ( Dialog )
+            InteropDo( x =>
+            {
+                if ( x.valuesStringArray == null )
+                {   // noch nichts gelesen
+                    Display( "Interop: zuerst die Texte lesen" );
+                    return;
+                }   // ende: noch nichts gelesen
+                x.WriteStringsToNewTarget( );
+                Display( "Interop: Texte in eine neue Datei geschrieben" );
+            } );
+
+        }   // end: _mItemInteropWriteStrings_Click
+
+        private void _mItemInteropAppend_Click( object sender, RoutedEventArgs e )
+        {   // eine Zeile unter das Datenrechteck des gewählten Blatts, dann speichern
+            InteropDo( x =>
+            {
+                if ( x.readOnly )
+                {   // nur lesen
+                    Display( "Interop: Datei ist nur zum Lesen geöffnet ( 'open … for writing' wählen )" );
+                    return;
+                }   // ende: nur lesen
+                x.AppendRowDoublesField( new double[] { 1, 2, 3 } );
+                Display( x.SaveWorkbook( ) ? "Interop: Zeile angehängt und gespeichert" : "Interop: Speichern fehlgeschlagen" );
+            } );
+
+        }   // end: _mItemInteropAppend_Click
+
+        private void _mItemInteropNewSheet_Click( object sender, RoutedEventArgs e )
+        {   // neues Blatt am Ende mit einer Matrix( x, y ), dann speichern
+            InteropDo( x =>
+            {
+                if ( x.readOnly )
+                {   // nur lesen
+                    Display( "Interop: Datei ist nur zum Lesen geöffnet ( 'open … for writing' wählen )" );
+                    return;
+                }   // ende: nur lesen
+                int nummer = x.NewSheet( "Demo" );
+                // Matrix( x, y ): 3 Spalten, 2 Zeilen; [ 2, 0 ] steht in C1, [ 0, 1 ] in A2
+                double[,] matrix = new double[ 3, 2 ];
+                for ( int spalte = 0; spalte < 3; spalte++ )
+                    for ( int zeile = 0; zeile < 2; zeile++ )
+                        matrix[ spalte, zeile ] = 10 * ( spalte + 1 ) + ( zeile + 1 );
+                x.WriteDoubles( matrix, 1, 1 );
+                Display( $"Interop: Blatt {nummer} '{x.GetSheetName( nummer )}' angelegt:\n" + MatrixToString( matrix ) );
+                Display( x.SaveWorkbook( ) ? "Interop: gespeichert" : "Interop: Speichern fehlgeschlagen" );
+            } );
+
+        }   // end: _mItemInteropNewSheet_Click
+
+        private void _mItemInteropClose_Click( object sender, RoutedEventArgs e )
+        {   // Datei schließen, Excel beenden
+            if ( dbfInterop == null )
+                Display( "Interop: keine Datei offen" );
+            InteropClose( );
+
+        }   // end: _mItemInteropClose_Click
 
     }   // end: class MainWindow
 
