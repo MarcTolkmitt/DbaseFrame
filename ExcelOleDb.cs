@@ -299,14 +299,14 @@ namespace DbaseFrame
         /// Prüft Texte vor dem Schreiben auf die Höchstlänge 'maxTextLength'.
         /// </summary>
         /// <param name="rows">die Zeilen</param>
-        /// <param name="funktion">aufrufende Funktion für die Meldung</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung ( z. B. "ExcelOleDb.WriteList…" )</param>
         /// <exception cref="ArgumentException">ein Text ist zu lang, mit Position ( spalte, zeile ) ab 0</exception>
-        static void CheckTextLength( List<string[]> rows, string funktion )
+        internal static void CheckTextLength( List<string[]> rows, string funktion )
         {
             for ( int y = 0; y < rows.Count; y++ )
                 for ( int x = 0; x < rows[ y ].Length; x++ )
                     if ( ( rows[ y ][ x ]?.Length ?? 0 ) > maxTextLength )
-                        throw new ArgumentException( "ExcelOleDb." + funktion + ": Text an ( " + x + ", " + y
+                        throw new ArgumentException( funktion + ": Text an ( " + x + ", " + y
                             + " ) hat " + rows[ y ][ x ].Length + " Zeichen, höchstens " + maxTextLength
                             + " sind möglich. Nichts geschrieben." );
 
@@ -508,12 +508,16 @@ namespace DbaseFrame
         /// Spaltennamen für eine neue Tabelle: bei useHeader und passender Spaltenzahl die gelesenen 'headers'
         /// ( Kopfzeile bleibt erhalten, 27.11.26 ), sonst wie bisher 0, 1, 2, ...
         /// Für ACE bereinigt: . ! [ ] ` werden _, leer → Spaltennummer, doppelt → Anhang _2, _3, ...
+        /// Auch von AccessOleDb benutzt ( 27.11.26 ).
         /// </summary>
+        /// <param name="kopfzeile">gelesene Spaltennamen ( 'headers' )</param>
+        /// <param name="nutzeKopf">Spaltennamen übernehmen ( ExcelOleDb: useHeader )</param>
         /// <param name="columns">Spaltenzahl der Daten</param>
         /// <returns>je Spalte ein eindeutiger Name</returns>
-        string[] ColumnNamesForWrite( int columns )
+        internal static string[] ColumnNamesForWrite( string[] kopfzeile, bool nutzeKopf, int columns )
         {
-            bool kopf = useHeader && ( headers.Length == columns );
+            bool kopf = nutzeKopf && ( kopfzeile.Length == columns );
+            string[] headers = kopfzeile;
             string[] namen = new string[ columns ];
             HashSet<string> vergeben = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
             for ( int pos = 0; pos < columns; pos++ )
@@ -539,13 +543,13 @@ namespace DbaseFrame
         /// Baut CREATE TABLE und INSERT INTO für eine neue Tabelle mit den Spaltennamen aus ColumnNamesForWrite.
         /// </summary>
         /// <param name="tabelle">Tabellenname</param>
-        /// <param name="columns">Spaltenzahl</param>
+        /// <param name="namen">Spaltennamen ( ColumnNamesForWrite )</param>
         /// <param name="typ">SQL-Typ der Spalten ( DOUBLE, VARCHAR )</param>
         /// <param name="commandInsert">INSERT INTO mit Parametern @0, @1, ...</param>
         /// <returns>CREATE TABLE</returns>
-        string TableCommands( string tabelle, int columns, string typ, out string commandInsert )
+        internal static string TableCommands( string tabelle, string[] namen, string typ, out string commandInsert )
         {
-            string[] namen = ColumnNamesForWrite( columns );
+            int columns = namen.Length;
             List<string> definitionen = new List<string>( );
             List<string> spalten = new List<string>( );
             List<string> parameter = new List<string>( );
@@ -698,7 +702,8 @@ namespace DbaseFrame
             // craft the 'CREATE TABLE' and 'INSERT INTO'; Spaltennamen bei useHeader aus der gelesenen
             // Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesDouble[0].Length;
-            string commandCreate = TableCommands( newTableName, columns, "DOUBLE", out string commandInsert );
+            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headers, useHeader, columns ), "DOUBLE",
+                out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
@@ -742,7 +747,7 @@ namespace DbaseFrame
             }
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
             // die Zieldatei blieb mit leerer Tabelle zurück )
-            CheckTextLength( valuesString, "WriteListStringToNewTarget" );
+            CheckTextLength( valuesString, "ExcelOleDb.WriteListStringToNewTarget" );
 
             bool overwrite = false;
             while ( !overwrite )
@@ -768,7 +773,8 @@ namespace DbaseFrame
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen );
             // Spaltennamen bei useHeader aus der gelesenen Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesString[0].Length;
-            string commandCreate = TableCommands( newTableName, columns, "VARCHAR", out string commandInsert );
+            string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headers, useHeader, columns ), "VARCHAR",
+                out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();

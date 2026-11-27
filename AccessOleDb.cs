@@ -23,6 +23,7 @@ using System.Data.Odbc;
 using System.Data.OleDb;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,7 +41,10 @@ namespace DbaseFrame
         ///           ACE-Treiber ), beschädigte Datei verständlich; ohne gewählte Tabelle klare Meldung; Tabellenwahl
         ///           ohne Systemtabellen ( MSys… ); Read…List ganz oder gar nicht, neues Feld 'headers';
         ///           ReadDoubleList wandelt jede Zahlenart ( vorher Int16, Decimal, Byte, Datum still 0 ), Text → Fehler;
-        ///           Tabelle ohne Datenzeile → Fehlermeldung
+        ///           Tabelle ohne Datenzeile → Fehlermeldung;
+        ///           Schreiben neu ( Entscheidung des Nutzers „mit ADOX“ ): neue Datei per ADOX ( OleDb kann keine anlegen,
+        ///           vorher scheiterte jeder Aufruf ), Write…ToNewTarget liefern bool, ChooseTarget mit Abbruch, Spaltennamen
+        ///           aus 'headers', Spaltenzahl der Texte richtig, Textlänge vorher geprüft, Verbindung bleibt offen
         /// </summary>
         Version version = new Version( "1.0.6" );
         /*
@@ -353,59 +357,78 @@ namespace DbaseFrame
         /// <summary>
         /// Target file name for the writing is chosen. Produces the
         /// 'targetConnectionString' for convenience.
+        /// Ohne Namen und ohne Dialog: newAccess_Test.accdb im Arbeitsordner ( wie bisher gemeint; 27.11.26: vorher
+        /// wurde dafür fälschlich die Quell-Verbindung vorangestellt ). Name wird vervollständigt ( .accdb, voller Pfad ).
         /// </summary>
         /// <param name="file">already known ?</param>
         /// <param name="silent">use the dialog ?</param>
-        public void ChooseTarget( ref string file, bool silent = true )
+        /// <returns>false, wenn der Dialog abgebrochen wurde: dann nichts schreiben ( 27.11.26, wie ExcelOleDb )</returns>
+        public bool ChooseTarget( ref string file, bool silent = true )
         {
             targetConnectionFile = file;
 
-            bool ok = false;
-            if ( !silent )
-                ok = DialogFileNameSave( ref targetConnectionFile );
-            if ( targetConnectionFile != "" )
-            {
-                targetConnectionString =
-                    targetConnectionStart +
-                    targetConnectionFile +
-                    targetConnectionOptions;
-                file = targetConnectionFile;
-            }
-            else
-            {
-                targetConnectionString =
-                    sourceConnectionString +
-                    GetDirectory() +
-                    "newAccess_Test.accdb" +
-                    targetConnectionOptions;
-                file = GetDirectory() + "newAccess_Test.accdb";
-            }
-            targetConnectionFile = file;
-            //Message.Show( file );
+            if ( !silent && !DialogFileNameSave( ref targetConnectionFile ) )
+                return ( false );   // abgebrochen
+            if ( targetConnectionFile == "" )
+                targetConnectionFile = GetDirectory() + "newAccess_Test.accdb";
+            if ( Path.GetExtension( targetConnectionFile ) == "" )
+                targetConnectionFile += ".accdb";
+            targetConnectionFile = Path.GetFullPath( targetConnectionFile );
+            targetConnectionString =
+                targetConnectionStart +
+                targetConnectionFile +
+                targetConnectionOptions;
+            file = targetConnectionFile;
+            return ( true );
 
         }   // end: ChooseTarget
 
+        /// <summary>
+        /// Legt eine neue, leere Access-Datei an ( 27.11.26 ). Der ACE-Treiber kann das über OleDb nicht
+        /// ( "Datei nicht gefunden" ), daher über ADOX ( COM "ADOX.Catalog", kommt mit dem ACE-Treiber ).
+        /// </summary>
+        /// <param name="datei">voller Dateiname ( .accdb )</param>
+        /// <exception cref="InvalidOperationException">ADOX nicht vorhanden ( ACE-Treiber fehlt )</exception>
+        void CreateDatabase( string datei )
+        {
+            Type katalogTyp = Type.GetTypeFromProgID( "ADOX.Catalog" )
+                ?? throw new InvalidOperationException(
+                    "AccessOleDb: ADOX fehlt, eine neue Access-Datei kann nicht angelegt werden ( ACE-Treiber installiert? )." );
+            dynamic katalog = Activator.CreateInstance( katalogTyp )!;
+            try
+            {   // anlegen; die von ADOX geöffnete Verbindung sofort schließen, sonst bleibt die Datei gesperrt
+                dynamic verbindung = katalog.Create( targetConnectionStart + datei + targetConnectionOptions );
+                verbindung.Close( );
+                Marshal.ReleaseComObject( verbindung );
+            }   // Ende: anlegen
+            finally
+            {   // COM-Objekt freigeben ( Grundsatz: jedes festgehaltene COM-Objekt freigeben )
+                Marshal.ReleaseComObject( katalog );
+            }   // Ende: COM-Objekt freigeben
+
+        }   // Ende: void CreateDatabase
 
         /// <summary>
-        /// Intern data list double will be written into a new 
-        /// Excel file. If not given a name a dialog will query for it.
+        /// Gemeinsamer Ablauf beider Schreibfunktionen ( 27.11.26 ): Ziel wählen ( Abbruch → false ), vorhandene Datei nur
+        /// nach Rückfrage ersetzen, neue Datei per ADOX anlegen, Tabelle anlegen und Zeilen einfügen. Die Verbindung bleibt
+        /// zwischen CREATE und INSERT offen ( Lehre aus ExcelOleDb ). Spaltennamen aus 'headers' ( ExcelOleDb.ColumnNamesForWrite ).
         /// </summary>
-        /// <param name="newFileTarget"></param>
-        public void WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Tabellenname</param>
+        /// <param name="columns">Spaltenzahl der Daten</param>
+        /// <param name="typ">SQL-Typ ( DOUBLE, VARCHAR )</param>
+        /// <param name="parameterTyp">OleDb-Typ der Werte</param>
+        /// <param name="zeilen">die Zeilen als Werte</param>
+        /// <returns>true = geschrieben, false = Dialog abgebrochen</returns>
+        bool WriteTable( string newFileTarget, string newTableName, int columns, string typ, OleDbType parameterTyp,
+            IEnumerable<object[]> zeilen )
         {
-            if ( valuesDouble.Count < 1 )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return;
-            }
-
             bool overwrite = false;
             while ( !overwrite )
             {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
+                // ohne Namen per Dialog; abgebrochen: nichts schreiben
+                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
+                    return ( false );
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -420,163 +443,73 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} DOUBLE ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} DOUBLE, ";
-                    tableCreateColumns += $"{1} DOUBLE ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} DOUBLE, ";
-                    tableCreateColumns += $"{( columns - 1 )} DOUBLE );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
 
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] "
-                    + tableCreateColumns;
-            //Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
-            //Message.Show( commandInsert );
+            CreateDatabase( newFileTarget );
+            string commandCreate = ExcelOleDb.TableCommands( newTableName,
+                ExcelOleDb.ColumnNamesForWrite( headers, true, columns ), typ, out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
-                // create the table
                 OleDbCommand command = new OleDbCommand( commandCreate, connection );
                 command.ExecuteNonQuery();
-                connection.Close();
-
-                connection.Open();
-                foreach ( double[] row in valuesDouble )
-                {
+                foreach ( object[] zeile in zeilen )
+                {   // je Zeile
                     command.CommandText = commandInsert;
                     command.Parameters.Clear();
-
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-
+                    for ( int pos = 0; pos < zeile.Length; pos++ )
+                        command.Parameters.Add( $"@{pos}", parameterTyp ).Value = zeile[ pos ] ?? DBNull.Value;
                     command.ExecuteNonQuery();
-                }
-
+                }   // Ende: je Zeile
                 connection.Close();
             }
+            return ( true );
+
+        }   // Ende: bool WriteTable
+
+        /// <summary>
+        /// Intern data list double will be written into a new
+        /// Access file. If not given a name a dialog will query for it ( 27.11.26: neue Datei per ADOX,
+        /// vorher scheiterte jeder Aufruf mit "Datei nicht gefunden" ).
+        /// </summary>
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Tabellenname</param>
+        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben</returns>
+        public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        {
+            if ( ( valuesDouble.Count < 1 ) || ( valuesDouble[ 0 ].Length == 0 ) )
+            {   // no data to write
+                Message.Show( "No data to write, abort!" );
+                return ( false );
+            }
+            List<object[]> zeilen = new List<object[]>( );
+            foreach ( double[] zeile in valuesDouble )
+                zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
+            return ( WriteTable( newFileTarget, newTableName, valuesDouble[ 0 ].Length, "DOUBLE", OleDbType.Double, zeilen ) );
 
         }   // end: WriteListDoubleToNewTarget
 
         /// <summary>
-        /// Intern data list string will be written into a new 
-        /// Excel file. If not given a name a dialog will query for it.
+        /// Intern data list string will be written into a new
+        /// Access file. If not given a name a dialog will query for it. Texte höchstens 255 Zeichen
+        /// ( VARCHAR, wie ExcelOleDb ), vorher geprüft, sonst nichts geschrieben.
         /// </summary>
-        /// <param name="newFileTarget"></param>
-        public void WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Tabellenname</param>
+        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben</returns>
+        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
-            if ( valuesString.Count < 1 )
+            if ( ( valuesString.Count < 1 ) || ( valuesString[ 0 ].Length == 0 ) )
             {   // no data to write
                 Message.Show( "No data to write, abort!" );
-                return;
+                return ( false );
             }
-
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
-
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
-            // craft the 'CREATE TABLE' and 'INSERT INTO'
-            int columns =  valuesDouble[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} VARCHAR ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} VARCHAR, ";
-                    tableCreateColumns += $"{1} VARCHAR ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} VARCHAR, ";
-                    tableCreateColumns += $"{( columns - 1 )} VARCHAR );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
-
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] "
-                    + tableCreateColumns;
-            //Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
-            //Message.Show( commandInsert );
-            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
-            {
-                connection.Open();
-                // create the table
-                OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                connection.Close();
-
-                connection.Open();
-                foreach ( string[] row in valuesString )
-                {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
-
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-
-                    command.ExecuteNonQuery();
-                }
-
-                connection.Close();
-            }
+            // die Daten haben zu passen: vor Dialog und Datei prüfen ( wie ExcelOleDb )
+            ExcelOleDb.CheckTextLength( valuesString, "AccessOleDb.WriteListStringToNewTarget" );
+            List<object[]> zeilen = new List<object[]>( );
+            foreach ( string[] zeile in valuesString )
+                zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
+            // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen )
+            return ( WriteTable( newFileTarget, newTableName, valuesString[ 0 ].Length, "VARCHAR", OleDbType.VarChar, zeilen ) );
 
         }   // end: WriteListStringToNewTarget
 

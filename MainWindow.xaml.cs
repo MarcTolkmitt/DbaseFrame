@@ -37,7 +37,7 @@ namespace DbaseFrame
         ///           OleDb-Menüpunkte über ExcelDo / AccessDo: ohne geöffnete Datei ein Hinweis
         ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad );
         ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben );
-        ///           Access-Dialog abgebrochen → nichts offen
+        ///           Access-Dialog abgebrochen → nichts offen; Access-Schreibmenüs gefüllt ( vorher leer )
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -561,24 +561,36 @@ namespace DbaseFrame
         }   // end: _mItemAccessListDoubleArray_Click
 
         /// <summary>
-        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// handler function -> _mItemWriteListDoubleToAccess_Click ( 27.11.26: vorher leer )
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListDoubleToAccess_Click( object sender, RoutedEventArgs e )
         {
+            AccessDo( x =>
+            {
+                Display( x.WriteListDoubleToNewTarget( )
+                    ? "OleDb Access: Zahlen in eine neue Datei geschrieben"
+                    : "OleDb Access: nichts geschrieben ( keine Daten oder abgebrochen )" );
+            } );
 
-        }
+        }   // end: _mItemWriteListDoubleToAccess_Click
 
         /// <summary>
-        /// handler function -> _mItemWriteListStringToExcel_Click
+        /// handler function -> _mItemWriteListStringToAccess_Click ( 27.11.26: vorher leer )
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
         /// <param name="e">send parameter from it</param>
         private void _mItemWriteListStringToAccess_Click( object sender, RoutedEventArgs e )
         {
+            AccessDo( x =>
+            {
+                Display( x.WriteListStringToNewTarget( )
+                    ? "OleDb Access: Texte in eine neue Datei geschrieben"
+                    : "OleDb Access: nichts geschrieben ( keine Daten oder abgebrochen )" );
+            } );
 
-        }
+        }   // end: _mItemWriteListStringToAccess_Click
 
         // ----------------------------------------------   EXCEL Interop ( 27.11.26 )
 
