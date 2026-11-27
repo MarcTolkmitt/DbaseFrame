@@ -32,7 +32,8 @@ namespace DbaseFrame
         /// created on: 22.10.24
         /// last edit: 27.11.26
         /// 27.11.26: Menü "Interop Excel" führt ExcelInterop vor; Excel- und Access-Menüpunkte über SafeDo:
-        ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen
+        ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen;
+        ///           beim Start Paketnummer ( PackageInfo ) und Version des Beispielprogramms anzeigen
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -49,6 +50,7 @@ namespace DbaseFrame
         {
             InitializeComponent();
 
+            Display( $"{PackageInfo.Text}, Beispielprogramm {version}" );
             Display( "Init ... OK" );
 
         }   // end: public MainWindow

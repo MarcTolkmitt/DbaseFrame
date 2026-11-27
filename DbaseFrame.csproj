@@ -13,12 +13,14 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/MarcTolkmitt/DbaseFrame</RepositoryUrl>
     <PackageTags>OleDB, Excel, Interop, C#</PackageTags>
-    <AssemblyVersion>1.0.5</AssemblyVersion>
     <PackageLicenseFile>Apache.txt</PackageLicenseFile>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Copyright>Apache</Copyright>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Version>1.0.6</Version>
+    <!-- Paketnummer: die einzige Stelle ( 27.11.26 ). AssemblyVersion und FileVersion folgen ihr automatisch,
+         im Code liefert sie PackageInfo.Version. Gepflegt wie die Klassennummern: bei Änderungen erhöhen,
+         höchstens einmal am Tag ( Paketnummer ab 1.0.7 ). -->
+    <Version>1.0.7</Version>
     <AssemblyTitle>DbaseFrame</AssemblyTitle>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
