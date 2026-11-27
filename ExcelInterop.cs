@@ -54,7 +54,8 @@ namespace DbaseFrame
         ///           Öffnen ohne unsichtbare Rückfragen ( kennwortgeschützte Datei ließ das Programm hängen ),
         ///           relativer Dateiname → voller Pfad;
         ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter );
-        ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx )
+        ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx );
+        ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -748,25 +749,48 @@ namespace DbaseFrame
 
         /// <summary>
         /// Zellwert als Zahl: Zahl ( auch Datum als Seriennummer ) unverändert, WAHR = 1 / FALSCH = 0,
-        /// Text mit einer Zahl in der Schreibweise von Windows ( z. B. "1,5" ) umgewandelt;
-        /// sonst ( leer, anderer Text, Excel-Fehler ) 0.
+        /// Text mit einer Zahl in der Schreibweise von Windows ( z. B. "1,5" ) umgewandelt; leer ( auch nur
+        /// Leerzeichen ) und Excel-Fehler 0. Anderer Text ist keine Zahl: false ( 27.11.26, vorher still 0 ).
         /// </summary>
-        static double CellNumber( object? wert )
+        /// <param name="wert">Zellwert aus Value2</param>
+        /// <param name="zahl">die Zahl</param>
+        /// <returns>false bei Text, der keine Zahl ist</returns>
+        static bool TryCellNumber( object? wert, out double zahl )
         {
+            zahl = 0.0;
             switch ( wert )
             {   // je nach Typ des Zellwerts
-                case double zahl:
-                    return ( zahl );
+                case double wertZahl:
+                    zahl = wertZahl;
+                    return ( true );
                 case bool wahr:
-                    return ( wahr ? 1.0 : 0.0 );
+                    zahl = wahr ? 1.0 : 0.0;
+                    return ( true );
                 case string text:
+                    if ( string.IsNullOrWhiteSpace( text ) )
+                        return ( true );   // leer: Standardwert 0
                     return ( double.TryParse( text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture,
-                        out double umgewandelt ) ? umgewandelt : 0.0 );
+                        out zahl ) );
                 default:
-                    return ( 0.0 );
+                    return ( true );       // leer ( null ) oder Excel-Fehler: 0
             }   // Ende: je nach Typ des Zellwerts
 
-        }   // Ende: double CellNumber
+        }   // Ende: bool TryCellNumber
+
+        /// <summary>
+        /// Fehlermeldung für eine Zelle mit Text statt Zahl ( die Daten haben zu passen ).
+        /// </summary>
+        /// <param name="wert">Zellwert</param>
+        /// <param name="spalte">Spalte im Blatt, ab 1</param>
+        /// <param name="zeile">Zeile im Blatt, ab 1</param>
+        /// <param name="funktion">aufrufende Funktion</param>
+        /// <returns>die Ausnahme zum Werfen</returns>
+        InvalidDataException TextInNumberCell( object? wert, int spalte, int zeile, string funktion )
+        {
+            return ( new InvalidDataException( $"ExcelInterop.{funktion}: Zelle {GetColumnFromNumber( spalte )}{zeile} "
+                + $"enthält den Text '{wert}' statt einer Zahl ( nur leere Zellen werden 0 )." ) );
+
+        }   // Ende: InvalidDataException TextInNumberCell
 
         /// <summary>
         /// Fehlertext zu einem Excel-Fehlercode aus Value2 ( Schreibweise des deutschen Excel ).
@@ -1108,8 +1132,8 @@ namespace DbaseFrame
 
         /// <summary>
         /// Reads the table's data as anonymous array of
-        /// doubles into 'valuesDoubleArray' ( [ spalte, zeile ] ). Umwandlung je Zelle siehe CellNumber
-        /// ( leer, Text ohne Zahl, Excel-Fehler: 0 ).
+        /// doubles into 'valuesDoubleArray' ( [ spalte, zeile ] ). Umwandlung je Zelle siehe TryCellNumber
+        /// ( leer, Excel-Fehler: 0; Text ohne Zahl: InvalidDataException mit Zelladresse ).
         /// Bei useHeader steht die erste Zeile in 'headers' und nicht in den Daten ( wie ReadStrings ).
         /// </summary>
         public void ReadDoubles()
@@ -1135,7 +1159,10 @@ namespace DbaseFrame
                 for (int colInd = 1; colInd <= colCount; colInd++)
                 {
                     // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0 ( Datenzeilen ab startRow )
-                    valuesDoubleArray[ colInd - 1, rowInd - startRow ] = CellNumber( werte[ rowInd, colInd ] );
+                    if ( !TryCellNumber( werte[ rowInd, colInd ], out double zahl ) )
+                        throw TextInNumberCell( werte[ rowInd, colInd ], firstCol + colInd - 1,
+                            firstRow + rowInd - 1, "ReadDoubles" );
+                    valuesDoubleArray[ colInd - 1, rowInd - startRow ] = zahl;
 
                 }   // end: for ( int colInd
 
@@ -1212,7 +1239,10 @@ namespace DbaseFrame
                 for ( int colInd = 1; colInd <= werte.GetLength( 1 ); colInd++ )
                 {
                     // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0
-                    locDoubleArray[ colInd - 1, rowInd - 1 ] = CellNumber( werte[ rowInd, colInd ] );
+                    if ( !TryCellNumber( werte[ rowInd, colInd ], out double zahl ) )
+                        throw TextInNumberCell( werte[ rowInd, colInd ], startX + colInd - 1,
+                            startY + rowInd - 1, "ReadDoubles" );
+                    locDoubleArray[ colInd - 1, rowInd - 1 ] = zahl;
 
                 }   // end: for ( int colInd
 
