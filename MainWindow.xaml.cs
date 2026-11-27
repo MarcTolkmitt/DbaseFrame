@@ -691,8 +691,9 @@ namespace DbaseFrame
                     Display( "Interop: zuerst die Zahlen lesen" );
                     return;
                 }   // ende: noch nichts gelesen
-                x.WriteDoublesToNewTarget( );
-                Display( "Interop: Zahlen in eine neue Datei geschrieben" );
+                Display( x.WriteDoublesToNewTarget( )
+                    ? "Interop: Zahlen in eine neue Datei geschrieben"
+                    : "Interop: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemInteropWriteDoubles_Click
@@ -706,8 +707,9 @@ namespace DbaseFrame
                     Display( "Interop: zuerst die Texte lesen" );
                     return;
                 }   // ende: noch nichts gelesen
-                x.WriteStringsToNewTarget( );
-                Display( "Interop: Texte in eine neue Datei geschrieben" );
+                Display( x.WriteStringsToNewTarget( )
+                    ? "Interop: Texte in eine neue Datei geschrieben"
+                    : "Interop: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemInteropWriteStrings_Click

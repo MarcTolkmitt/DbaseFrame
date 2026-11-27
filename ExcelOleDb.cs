@@ -39,6 +39,7 @@ namespace DbaseFrame
         ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
         ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException;
         ///           relativer Dateiname → voller Pfad; Lesen ohne gewählte Tabelle → klare Meldung;
+        ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben ( vorher NewTarget.xlsx );
         ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen ) und prüft vorher die
         ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben )
         /// </summary>
@@ -404,13 +405,15 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">already known ?</param>
         /// <param name="silent">use the dialog ?</param>
-        public void ChooseTarget( ref string file, bool silent = true )
+        /// <returns>false, wenn der Dialog abgebrochen wurde: dann nichts schreiben</returns>
+        public bool ChooseTarget( ref string file, bool silent = true )
         {
             targetFileName = file;
 
-            bool ok = false;
-            if ( !silent )
-                ok = DialogFileNameSave( ref targetFileName );
+            if ( !silent && !DialogFileNameSave( ref targetFileName ) )
+            {   // Dialog abgebrochen ( 27.11.26: vorher wurde dann NewTarget.xlsx im Programmordner beschrieben )
+                return ( false );
+            }   // Ende: Dialog abgebrochen
             if ( targetFileName != "" )
             {
                 targetConnectionString =
@@ -431,7 +434,7 @@ namespace DbaseFrame
                 file = GetDirectory() + "NewTarget.xlsx";
             }
             targetFileName = file;
-            //Message.Show( file );
+            return ( true );
 
         }   // end: ChooseTarget
 
@@ -452,10 +455,9 @@ namespace DbaseFrame
             bool overwrite = false;
             while ( !overwrite )
             {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
+                // ohne Namen per Dialog; abgebrochen: nichts schreiben
+                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
+                    return;
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -554,10 +556,9 @@ namespace DbaseFrame
             bool overwrite = false;
             while ( !overwrite )
             {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
+                // ohne Namen per Dialog; abgebrochen: nichts schreiben
+                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
+                    return;
 
                 if ( File.Exists( newFileTarget ) )
                 {

@@ -53,7 +53,8 @@ namespace DbaseFrame
         ///           Grund eines gescheiterten Öffnens in 'lastError' ( fehlende / beschädigte Datei, Excel fehlt );
         ///           Öffnen ohne unsichtbare Rückfragen ( kennwortgeschützte Datei ließ das Programm hängen ),
         ///           relativer Dateiname → voller Pfad;
-        ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter )
+        ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter );
+        ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -254,17 +255,15 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">already known ?</param>
         /// <param name="silent">use the dialog ?</param>
-        public void ChooseTarget( ref string file, bool silent = true )
+        /// <returns>false, wenn der Dialog abgebrochen wurde: dann nichts schreiben</returns>
+        public bool ChooseTarget( ref string file, bool silent = true )
         {
-            bool ok = true;
-            if ( !silent )
-                ok = DialogFileNameSave( ref file );
-            if ( !ok )
-            {
-                file = GetDirectory() + "NewTarget.xlsx";
-            }
+            if ( !silent && !DialogFileNameSave( ref file ) )
+            {   // Dialog abgebrochen ( 27.11.26: vorher wurde dann NewTarget.xlsx im Programmordner beschrieben )
+                return ( false );
+            }   // Ende: Dialog abgebrochen
             targetFileName = file;
-            //Message.Show( file );
+            return ( true );
 
         }   // end: ChooseTarget
 
@@ -1334,7 +1333,8 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
-        public void WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
+        public bool WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
         {
             // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
             CheckFinite( valuesDoubleArray, "WriteDoublesToNewTarget" );
@@ -1342,10 +1342,9 @@ namespace DbaseFrame
             bool overwrite = false;
             while ( !overwrite )
             {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
+                // ohne Namen per Dialog; abgebrochen: nichts schreiben
+                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
+                    return ( false );
                 // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
                 newFileTarget = CompleteTargetName( newFileTarget );
 
@@ -1402,6 +1401,7 @@ namespace DbaseFrame
                 newWorkbook.Close( SaveChanges: false );
                 Marshal.ReleaseComObject( newWorkbook );
             }   // Ende: neue Mappe schließen
+            return ( true );
 
         }   // end: WriteDoublesToNewTarget
 
@@ -1413,15 +1413,15 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
-        public void WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
+        public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
             bool overwrite = false;
             while ( !overwrite )
             {
-                if ( newFileTarget == "" )
-                    ChooseTarget( ref newFileTarget, false );
-                else
-                    ChooseTarget( ref newFileTarget, true );
+                // ohne Namen per Dialog; abgebrochen: nichts schreiben
+                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
+                    return ( false );
                 // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
                 newFileTarget = CompleteTargetName( newFileTarget );
 
@@ -1478,6 +1478,7 @@ namespace DbaseFrame
                 newWorkbook.Close( SaveChanges: false );
                 Marshal.ReleaseComObject( newWorkbook );
             }   // Ende: neue Mappe schließen
+            return ( true );
 
         }   // end: WriteStringsToNewTarget
 
