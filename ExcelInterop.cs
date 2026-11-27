@@ -55,7 +55,8 @@ namespace DbaseFrame
         ///           relativer Dateiname → voller Pfad;
         ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter );
         ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx );
-        ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 )
+        ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 );
+        ///           ReadDoubles weist 'valuesDoubleArray' erst nach dem Lesen zu ( kein halb gefülltes Feld )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -1149,7 +1150,9 @@ namespace DbaseFrame
             ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
 
-            valuesDoubleArray = new double[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
+            // erst lokal füllen, erst am Ende zuweisen ( wie ReadDoubles für einen Bereich ): Bricht das Lesen
+            // bei Text ab, bleibt kein halb gefülltes Feld zurück ( 27.11.26: vorher Rest 0, so auch speicherbar )
+            double[,] locDoubleArray = new double[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
 
             // a dream would be the next line, but it is not save for input
             // valuesDoubleArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as double[,];
@@ -1162,11 +1165,13 @@ namespace DbaseFrame
                     if ( !TryCellNumber( werte[ rowInd, colInd ], out double zahl ) )
                         throw TextInNumberCell( werte[ rowInd, colInd ], firstCol + colInd - 1,
                             firstRow + rowInd - 1, "ReadDoubles" );
-                    valuesDoubleArray[ colInd - 1, rowInd - startRow ] = zahl;
+                    locDoubleArray[ colInd - 1, rowInd - startRow ] = zahl;
 
                 }   // end: for ( int colInd
 
             }   // end: for ( int rowInd
+
+            valuesDoubleArray = locDoubleArray;
 
         }   // end: ReadDoubles
 
