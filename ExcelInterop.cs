@@ -56,7 +56,8 @@ namespace DbaseFrame
         ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter );
         ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx );
         ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 );
-        ///           ReadDoubles weist 'valuesDoubleArray' erst nach dem Lesen zu ( kein halb gefülltes Feld )
+        ///           ReadDoubles leert 'valuesDoubleArray' zu Beginn und weist es erst nach dem Lesen zu ( nach einem
+        ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -880,8 +881,13 @@ namespace DbaseFrame
         /// ( es schreibt #ZAHL! ), daher Fehlermeldung statt unbrauchbarer Zellen.
         /// </summary>
         /// <exception cref="ArgumentException">NaN oder Unendlich in der Matrix</exception>
+        /// <exception cref="InvalidOperationException">keine Matrix ( z. B. ReadDoubles gescheitert )</exception>
         static void CheckFinite( double[,] matrix, string funktion )
         {
+            // keine Daten: ReadDoubles leert 'valuesDoubleArray' zu Beginn ( 27.11.26 ), nach einem Fehler bleibt es leer
+            if ( matrix == null )
+                throw new InvalidOperationException( "ExcelInterop." + funktion
+                    + ": keine Zahlen vorhanden ( zuerst ReadDoubles fehlerfrei ausführen )." );
             for ( int x = 0; x < matrix.GetLength( 0 ); x++ )
                 for ( int y = 0; y < matrix.GetLength( 1 ); y++ )
                     if ( !double.IsFinite( matrix[ x, y ] ) )
@@ -894,8 +900,11 @@ namespace DbaseFrame
         /// Prüft ein Feld vor dem Schreiben auf NaN und Unendlich ( wie CheckFinite für Matrizen ).
         /// </summary>
         /// <exception cref="ArgumentException">NaN oder Unendlich im Feld</exception>
+        /// <exception cref="InvalidOperationException">kein Feld übergeben</exception>
         static void CheckFinite( double[] feld, string funktion )
         {
+            if ( feld == null )
+                throw new InvalidOperationException( "ExcelInterop." + funktion + ": keine Zahlen übergeben." );
             for ( int x = 0; x < feld.Length; x++ )
                 if ( !double.IsFinite( feld[ x ] ) )
                     throw new ArgumentException( "ExcelInterop." + funktion + ": Wert an ( " + x + " ) ist "
@@ -1139,6 +1148,11 @@ namespace DbaseFrame
         /// </summary>
         public void ReadDoubles()
         {
+            // zuerst leeren ( Vorgabe vom 27.11.26 ): Scheitert dieses Lesen, bleiben keine Zahlen eines früher
+            // gelesenen Blatts stehen, die sich ohne Hinweis speichern ließen; die Schreibfunktionen melden dann
+            // "keine Zahlen vorhanden" ( CheckFinite )
+            valuesDoubleArray = null!;
+
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
             object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
             // die Daten haben zu passen, sonst Fehlermeldung ( CheckDataRectangle )
