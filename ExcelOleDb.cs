@@ -47,7 +47,8 @@ namespace DbaseFrame
         ///           mit dem SQL-Text ( Testausgabe, wie schon in WriteListStringToNewTarget );
         ///           Write…ToNewTarget liefern bool ( geschrieben / nichts geschrieben ); neues Feld 'headers'
         ///           ( Spaltennamen beim Lesen ), bei useHeader Spaltennamen der neuen Tabelle ( vorher 0, 1, 2, ... );
-        ///           ganz gesperrte Datei → IOException ( CheckReadable ), vorher Absturz im ACE-Treiber
+        ///           ganz gesperrte Datei → IOException ( CheckReadable ), vorher Absturz im ACE-Treiber;
+        ///           Read…List leeren ihre Liste zu Beginn ( nach einem Fehler keine Daten eines früheren Lesens )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -314,14 +315,16 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
-            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesTypes = new List<string[]>();
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 string[] locHeaders = ColumnNames( reader );
 
-                valuesTypes = new List<string[]>();
+                List<string[]> locTypes = new List<string[]>();
 
                 while ( reader.Read() )
                 {
@@ -331,11 +334,12 @@ namespace DbaseFrame
                         temp[ pos ] =
                             reader[ pos ].GetType().ToString()
                             ?? string.Empty;
-                    valuesTypes.Add( temp );
+                    locTypes.Add( temp );
 
                 }
                 reader.Close();
                 conn.Close();
+                valuesTypes = locTypes;
                 headers = locHeaders;
 
             }   // end: using
@@ -350,25 +354,28 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
-            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesString = new List<string[]>();
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 string[] locHeaders = ColumnNames( reader );
 
-                valuesString = new List<string[]>();
+                List<string[]> locStrings = new List<string[]>();
 
                 while ( reader.Read() )
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = 
+                        temp[ pos ] =
                             reader[ pos ].ToString()
                             ?? string.Empty;
-                    valuesString.Add( temp );
+                    locStrings.Add( temp );
 
                 }
+                valuesString = locStrings;
                 headers = locHeaders;
 
             }   // end: using
@@ -383,14 +390,16 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
-            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
+            // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
+            headers = new string[ 0 ];
+            valuesDouble = new List<double[]>();
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
                 string[] locHeaders = ColumnNames( reader );
 
-                valuesDouble = new List<double[]>();
+                List<double[]> locDoubles = new List<double[]>();
 
                 while ( reader.Read() )
                 {
@@ -398,9 +407,10 @@ namespace DbaseFrame
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
                         if ( reader[ pos ].GetType() == typeof( double ) )
                             temp[ pos ] = reader.GetDouble( pos );
-                    valuesDouble.Add( temp );
+                    locDoubles.Add( temp );
 
                 }
+                valuesDouble = locDoubles;
                 headers = locHeaders;
 
             }   // end: using
