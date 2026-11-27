@@ -52,7 +52,8 @@ namespace DbaseFrame
         ///           Lesen und Schreiben im gewählten Blatt;
         ///           Grund eines gescheiterten Öffnens in 'lastError' ( fehlende / beschädigte Datei, Excel fehlt );
         ///           Öffnen ohne unsichtbare Rückfragen ( kennwortgeschützte Datei ließ das Programm hängen ),
-        ///           relativer Dateiname → voller Pfad
+        ///           relativer Dateiname → voller Pfad;
+        ///           ExcelInteropQuit gibt auch das Blatt frei ( Excel lief nach dem Lesen weiter )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -136,12 +137,26 @@ namespace DbaseFrame
 
         public void ExcelInteropQuit()
         {
+            /* Alle festgehaltenen COM-Objekte freigeben, sonst läuft Excel nach dem Programmende weiter:
+             *  - .NET führt beim Programmende keine Finalizer aus; das Feld 'worksheet' ( gesetzt beim Lesen und
+             *    Schreiben ) hielt Excel am Leben, bis Windows den toten Verweis nach Minuten bemerkte
+             *    ( 27.11.26 mit MatrixFFN gefunden: nach dem Lesen blieb je Aufruf ein Excel-Prozess )
+             *  - Felder danach auf null: ein zweiter Aufruf tut nichts
+             *  - GC zweimal: erst Finalizer der übrigen Zwischenobjekte ( UsedRange, Worksheets … ), dann deren Reste
+            */
+            if (worksheet != null)
+            {   // gewähltes Blatt freigeben
+                Marshal.ReleaseComObject(worksheet);
+                worksheet = null!;
+            }   // Ende: gewähltes Blatt freigeben
+
             // Optional: Workbook schließen
             if (workbook != null)
             {
                 // nur gelesen: nichts speichern, die Datei bleibt unverändert ( 27.11.26: vorher immer gespeichert )
                 workbook.Close(SaveChanges: !readOnly);
                 Marshal.ReleaseComObject(workbook);
+                workbook = null!;
             }
             workbookOpen = false;
 
@@ -150,11 +165,11 @@ namespace DbaseFrame
             {
                 excelApp.Quit();
                 Marshal.ReleaseComObject(excelApp);
+                excelApp = null!;
             }
 
-            //workbook = null;
-            //excelApp = null;
-
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
