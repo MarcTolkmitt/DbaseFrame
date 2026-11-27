@@ -57,7 +57,8 @@ namespace DbaseFrame
         ///           Write…ToNewTarget: Dialog abgebrochen → nichts schreiben, Rückgabe false ( vorher NewTarget.xlsx );
         ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 );
         ///           ReadDoubles leert 'valuesDoubleArray' zu Beginn und weist es erst nach dem Lesen zu ( nach einem
-        ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException
+        ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException;
+        ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -620,13 +621,17 @@ namespace DbaseFrame
         /// </summary>
         public void ReadTypes( )
         {
+            // zuerst leeren, lokal füllen, am Ende zuweisen ( wie ReadDoubles, 27.11.26 ): nach einem Fehler
+            // keine Typen eines früher gelesenen Blatts
+            valuesTypesArray = null!;
+
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" );
             // ohne Prüfung des Rechtecks: ReadTypes dient der Untersuchung fremder Daten
             object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
             int rowCount = werte.GetLength( 0 );
             int colCount = werte.GetLength( 1 );
 
-            valuesTypesArray = new string[ colCount, rowCount ];
+            string[,] locTypesArray = new string[ colCount, rowCount ];
 
             for ( int rowInd = 1; rowInd <= rowCount; rowInd++ )
             {
@@ -634,11 +639,13 @@ namespace DbaseFrame
                 {
                     // Typ des Zellwerts; Excel zählt ab 1, das Array ab 0
                     object? wert = werte[ rowInd, colInd ];
-                    valuesTypesArray[ colInd - 1, rowInd - 1 ] = wert?.GetType().ToString() ?? string.Empty;
+                    locTypesArray[ colInd - 1, rowInd - 1 ] = wert?.GetType().ToString() ?? string.Empty;
 
                 }   // end: for ( int colInd
 
             }   // end: for ( int rowInd
+
+            valuesTypesArray = locTypesArray;
 
         }   // end: ReadTypes
 
@@ -650,6 +657,11 @@ namespace DbaseFrame
         /// </summary>
         public void ReadStrings()
         {
+            // zuerst leeren, lokal füllen, am Ende zuweisen ( wie ReadDoubles, 27.11.26 ): Scheitert das Lesen
+            // ( z. B. leeres Blatt ), bleiben keine Texte eines früher gelesenen Blatts stehen; die
+            // Schreibfunktionen melden dann "keine Texte vorhanden" ( CheckStrings )
+            valuesStringArray = null!;
+
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
             object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
             // die Daten haben zu passen, sonst Fehlermeldung ( CheckDataRectangle )
@@ -664,18 +676,20 @@ namespace DbaseFrame
             ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
 
-            valuesStringArray = new string[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
+            string[,] locStringArray = new string[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
 
             for ( int rowInd = startRow; rowInd <= rowCount; rowInd++ )
             {
                 for ( int colInd = 1; colInd <= colCount; colInd++ )
                 {
                     // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0 ( Datenzeilen ab startRow )
-                    valuesStringArray[ colInd - 1, rowInd - startRow ] = CellText( werte[ rowInd, colInd ] );
+                    locStringArray[ colInd - 1, rowInd - startRow ] = CellText( werte[ rowInd, colInd ] );
 
                 }   // end: for ( int colInd
 
             }   // end: for ( int rowInd
+
+            valuesStringArray = locStringArray;
 
         }   // end: ReadStrings
 
@@ -897,6 +911,19 @@ namespace DbaseFrame
         }   // Ende: void CheckFinite
 
         /// <summary>
+        /// Prüft vor dem Schreiben, ob es Texte gibt ( Gegenstück zu CheckFinite für Zahlen ).
+        /// </summary>
+        /// <exception cref="InvalidOperationException">keine Texte ( z. B. ReadStrings gescheitert )</exception>
+        static void CheckStrings( string[,] matrix, string funktion )
+        {
+            // keine Daten: ReadStrings leert 'valuesStringArray' zu Beginn ( 27.11.26 ), nach einem Fehler bleibt es leer
+            if ( matrix == null )
+                throw new InvalidOperationException( "ExcelInterop." + funktion
+                    + ": keine Texte vorhanden ( zuerst ReadStrings fehlerfrei ausführen )." );
+
+        }   // Ende: void CheckStrings
+
+        /// <summary>
         /// Prüft ein Feld vor dem Schreiben auf NaN und Unendlich ( wie CheckFinite für Matrizen ).
         /// </summary>
         /// <exception cref="ArgumentException">NaN oder Unendlich im Feld</exception>
@@ -932,6 +959,9 @@ namespace DbaseFrame
         /// </summary>
         public void WriteStrings()
         {
+            // die Daten haben zu passen: es muss Texte geben ( ReadStrings leert das Feld zu Beginn )
+            CheckStrings( valuesStringArray, "WriteStrings" );
+
             // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
             worksheet = SelectedSheet( );
 
@@ -1465,6 +1495,9 @@ namespace DbaseFrame
         /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
         public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
+            // die Daten haben zu passen: es muss Texte geben, vor dem Dialog prüfen ( wie WriteDoublesToNewTarget )
+            CheckStrings( valuesStringArray, "WriteStringsToNewTarget" );
+
             bool overwrite = false;
             while ( !overwrite )
             {
