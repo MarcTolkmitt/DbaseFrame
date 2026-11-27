@@ -48,7 +48,9 @@ namespace DbaseFrame
         ///           Write…ToNewTarget liefern bool ( geschrieben / nichts geschrieben ); neues Feld 'headers'
         ///           ( Spaltennamen beim Lesen ), bei useHeader Spaltennamen der neuen Tabelle ( vorher 0, 1, 2, ... );
         ///           ganz gesperrte Datei → IOException ( CheckReadable ), vorher Absturz im ACE-Treiber;
-        ///           Read…List leeren ihre Liste zu Beginn ( nach einem Fehler keine Daten eines früheren Lesens )
+        ///           Read…List leeren ihre Liste zu Beginn ( nach einem Fehler keine Daten eines früheren Lesens );
+        ///           ReadDoubleList liest mit IMEX=1 und wandelt je Zelle wie ExcelInterop ( Text statt Zahl →
+        ///           InvalidDataException; vorher still 0, auch WAHR und "1,5" )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -218,7 +220,8 @@ namespace DbaseFrame
          *    ( "Die externe Tabelle hat nicht das erwartete Format." ) → InvalidDataException mit Dateinamen
         */
         /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
-        OleDbConnection OpenSource( )
+        /// <param name="imex">mit IMEX=1: gemischte Spalten kommen als Text statt als DBNull ( für ReadDoubleList )</param>
+        OleDbConnection OpenSource( bool imex = false )
         {
             // keine Datei gewählt ( Dialog abgebrochen ): klare Meldung statt "nicht gefunden: " ohne Namen
             if ( sourceFile == "" )
@@ -226,7 +229,9 @@ namespace DbaseFrame
             if ( !File.Exists( sourceFile ) )
                 throw new FileNotFoundException( $"Excel-Datei nicht gefunden: {sourceFile}", sourceFile );
             CheckReadable( sourceFile );
-            OleDbConnection conn = new OleDbConnection( connectionString );
+            // IMEX=1 kommt in die Extended Properties ( vor das schließende Anführungszeichen )
+            string verbindung = imex ? connectionString.TrimEnd( '"' ) + "IMEX=1;\"" : connectionString;
+            OleDbConnection conn = new OleDbConnection( verbindung );
             try
             {
                 conn.Open( );
@@ -393,7 +398,14 @@ namespace DbaseFrame
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
             headers = new string[ 0 ];
             valuesDouble = new List<double[]>();
-            using ( OleDbConnection conn = OpenSource( ) )
+            /* Die Daten haben zu passen ( 27.11.26, wie ExcelInterop.ReadDoubles ):
+             *  - ohne IMEX liefert der ACE-Treiber Text in einer Zahlenspalte als DBNull, nicht unterscheidbar von
+             *    einer leeren Zelle ( gemessen ); mit IMEX=1 kommt eine gemischte Spalte als Text
+             *  - je Zelle wie ExcelInterop: leer 0, WAHR/FALSCH 1/0, Zahl als Text umgewandelt, anderer Text Fehler
+             *  - Grenze des Treibers: er schätzt den Spaltentyp aus den ersten 8 Zeilen ( TypeGuessRows ); steht
+             *    Text erst danach in einer Zahlenspalte, kommt er weiter als DBNull, also 0. Streng: ExcelInterop
+            */
+            using ( OleDbConnection conn = OpenSource( true ) )
             {
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
@@ -405,8 +417,12 @@ namespace DbaseFrame
                 {
                     double[] temp = new double[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        if ( reader[ pos ].GetType() == typeof( double ) )
-                            temp[ pos ] = reader.GetDouble( pos );
+                    {   // jeder Wert einzeln geprüft
+                        if ( !TryCellNumber( reader[ pos ], out temp[ pos ] ) )
+                            throw new InvalidDataException( $"ExcelOleDb.ReadDoubleList: Zeile {locDoubles.Count + ( useHeader ? 2 : 1 )}"
+                                + $" der Tabelle, Spalte '{locHeaders[ pos ]}' enthält den Text '{reader[ pos ]}' statt einer Zahl"
+                                + " ( nur leere Zellen werden 0 )." );
+                    }   // Ende: jeder Wert einzeln geprüft
                     locDoubles.Add( temp );
 
                 }
@@ -416,6 +432,53 @@ namespace DbaseFrame
             }   // end: using
 
         }   // end: ReadDoubleList
+
+        /// <summary>
+        /// Zellwert als Zahl, Regeln wie ExcelInterop.TryCellNumber: Zahl unverändert, Datum als Seriennummer,
+        /// WAHR/FALSCH 1/0 ( als Wahrheitswert oder Text WAHR, FALSCH, TRUE, FALSE ), Text mit einer Zahl in der
+        /// Schreibweise von Windows ( "1,5" ) umgewandelt, leer ( DBNull, nur Leerzeichen ) 0; anderer Text: false.
+        /// </summary>
+        /// <param name="wert">Wert aus dem Leser</param>
+        /// <param name="zahl">die Zahl</param>
+        /// <returns>false bei Text, der keine Zahl ist</returns>
+        static bool TryCellNumber( object? wert, out double zahl )
+        {
+            zahl = 0.0;
+            switch ( wert )
+            {   // je nach Typ des Werts
+                case null:
+                case DBNull:
+                    return ( true );       // leer: Standardwert 0
+                case double wertZahl:
+                    zahl = wertZahl;
+                    return ( true );
+                case bool wahr:
+                    zahl = wahr ? 1.0 : 0.0;
+                    return ( true );
+                case DateTime datum:
+                    zahl = datum.ToOADate( );
+                    return ( true );
+                case string text:
+                    string t = text.Trim( );
+                    if ( t.Length == 0 )
+                        return ( true );   // leer: Standardwert 0
+                    if ( t.Equals( "WAHR", StringComparison.OrdinalIgnoreCase ) || t.Equals( "TRUE", StringComparison.OrdinalIgnoreCase ) )
+                    {   // Wahrheitswert als Text ( IMEX liefert ihn so )
+                        zahl = 1.0;
+                        return ( true );
+                    }   // Ende: Wahrheitswert als Text
+                    if ( t.Equals( "FALSCH", StringComparison.OrdinalIgnoreCase ) || t.Equals( "FALSE", StringComparison.OrdinalIgnoreCase ) )
+                        return ( true );   // 0
+                    return ( double.TryParse( t, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.CurrentCulture, out zahl ) );
+                case IConvertible sonst:
+                    zahl = sonst.ToDouble( System.Globalization.CultureInfo.CurrentCulture );   // decimal, int, ...
+                    return ( true );
+                default:
+                    return ( false );
+            }   // Ende: je nach Typ des Werts
+
+        }   // Ende: bool TryCellNumber
 
         /// <summary>
         /// Spaltennamen des Lesers ( bei HDR=YES die Kopfzeile, sonst F1, F2, ... des Treibers ).
