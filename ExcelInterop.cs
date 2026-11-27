@@ -19,6 +19,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -36,36 +37,70 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 30.06.25
-        /// last edit: 12.10.26
+        /// last edit: 27.11.26
         /// Now since Visual Studio Pro i can use the Interop library
+        /// 27.11.26: Lesefunktionen repariert ( ReadTypes, ReadStrings, ReadDoubles, je auch für einen Bereich:
+        ///           Blatt, Value2, Index ab 0, X = Spalte / Y = Zeile, Bereichsprüfung ), Kopfzeile in 'headers'
+        ///           wie ExcelOleDb; überall ActiveSheet.Worksheet ersetzt; Rückblick: Datenrechteck statt ab A1,
+        ///           alle Werte mit einem Zugriff und danach einzeln geprüft, Sonderwerte ( Fehler, WAHR, Zahl als Text );
+        ///           Schreibfunktionen repariert ( Blatt, Übergabe Matrix( x, y ) an Excels [ zeile, spalte ],
+        ///           Anhängen unter dem Datenrechteck, WriteToNewTarget schreibt und speichert die neue Mappe );
+        ///           die Daten haben zu passen: leeres Blatt / leere Rand-Zeile oder -Spalte und NaN / Unendlich
+        ///           ergeben eine Fehlermeldung; Zielname wird vervollständigt ( .xlsx, voller Pfad );
+        ///           Konstruktor mit doReadOnly ( schreibgeschützt öffnen, beim Beenden nicht speichern ),
+        ///           workbookOpen; Blätter 0-basiert ( GetSheetName, SetSheetName, NewSheet ), SelectSheet,
+        ///           Lesen und Schreiben im gewählten Blatt
         /// </summary>
-        Version version = new Version( "1.0.7" );
+        Version version = new Version( "1.0.8" );
 
-        Microsoft.Office.Interop.Excel.Application excelApp;
-        Microsoft.Office.Interop.Excel.Workbook workbook;
-        Microsoft.Office.Interop.Excel.Worksheet worksheet;
+        Microsoft.Office.Interop.Excel.Application excelApp = null!;
+        Microsoft.Office.Interop.Excel.Workbook workbook = null!;
+        Microsoft.Office.Interop.Excel.Worksheet worksheet = null!;
 
         public bool useHeader = true;
         public string fileName = "";
         public string targetFileName = "";
-        public string[,] valuesStringArray;
-        public double[,] valuesDoubleArray;
-        public string[,] valuesTypesArray;
+        public string[,] valuesStringArray = null!;
+        public double[,] valuesDoubleArray = null!;
+        public string[,] valuesTypesArray = null!;
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
         /// <summary>
-        /// Constructor for the class. 
+        /// Kopfzeile der zuletzt gelesenen Tabelle ( bei useHeader = false die Spaltennamen A, B, ... )
+        /// </summary>
+        public string[] headers = new string[ 0 ];
+
+        /// <summary>
+        /// Mappe nur zum Lesen geöffnet: Excel öffnet sie schreibgeschützt, beim Beenden wird nichts gespeichert
+        /// </summary>
+        public bool readOnly = false;
+
+        /// <summary>
+        /// Mappe erfolgreich geöffnet?
+        /// </summary>
+        public bool workbookOpen = false;
+
+        /// <summary>
+        /// Constructor for the class.
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
-        public ExcelInterop( string file = "", bool silent = true,  bool doUseHeader = true )
+        /// <param name="doUseHeader">erste Zeile des Datenrechtecks als Kopfzeile lesen</param>
+        /// <param name="doReadOnly">nur lesen: schreibgeschützt öffnen, beim Beenden nichts speichern</param>
+        public ExcelInterop( string file = "", bool silent = true,  bool doUseHeader = true, bool doReadOnly = false )
         {
             fileName = file;
             useHeader = doUseHeader;
-            bool ok = false;
+            readOnly = doReadOnly;
             if ( !silent )
-                ok = DialogFileNameLoad( ref fileName );
+            {   // Dateiname per Dialog
+                if ( !DialogFileNameLoad( ref fileName ) )
+                {   // abgebrochen: nichts öffnen ( 27.11.26: vorher wurde trotzdem geöffnet )
+                    Console.WriteLine( "File dialog error... " );
+                    return;
+                }   // ende: abgebrochen: nichts öffnen
+            }   // ende: Dateiname per Dialog
             try
             {
                 excelApp =
@@ -81,28 +116,9 @@ namespace DbaseFrame
                 Console.WriteLine( "common error: " + ex.Message );
             }   // end: try excelApp
 
-            // Open document
-            try
-            {
-                // Datei öffnen
-                workbook = excelApp.Workbooks.Open(
-                    fileName,
-                    ReadOnly: false,
-                    Editable: true
-                );
-
-            }
-            catch (COMException comEx)
-            {
-                Console.WriteLine("Excel-Interop-Fehler: " + comEx.Message);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Allgemeiner Fehler: " + ex.Message);
-            }   // end: try workbook
-
-            if ( !ok )
-                Console.WriteLine("File dialog error... " );
+            // Open document ( 27.11.26: über OpenWorkbook, bei readOnly schreibgeschützt; die Meldung
+            // "File dialog error" kam vorher im stillen Modus immer, auch bei Erfolg )
+            OpenWorkbook( );
 
         }   // end: ExcelInterop ( constructor )
 
@@ -111,9 +127,11 @@ namespace DbaseFrame
             // Optional: Workbook schließen
             if (workbook != null)
             {
-                workbook.Close(SaveChanges: true);
+                // nur gelesen: nichts speichern, die Datei bleibt unverändert ( 27.11.26: vorher immer gespeichert )
+                workbook.Close(SaveChanges: !readOnly);
                 Marshal.ReleaseComObject(workbook);
             }
+            workbookOpen = false;
 
             // Excel beenden
             if (excelApp != null)
@@ -122,8 +140,8 @@ namespace DbaseFrame
                 Marshal.ReleaseComObject(excelApp);
             }
 
-            workbook = null;
-            excelApp = null;
+            //workbook = null;
+            //excelApp = null;
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -285,17 +303,21 @@ namespace DbaseFrame
 
         /// <summary>
         /// Opens a workbook with the given file name. Returns true if successful, false otherwise.
+        /// Bei readOnly schreibgeschützt. Setzt 'workbookOpen'.
         /// </summary>
         /// <returns>boolean value indicating success or failure</returns>
         public bool OpenWorkbook()
         {
+            workbookOpen = false;
+            if ( excelApp == null )
+                return ( false );   // Excel ließ sich nicht starten
             try
             {
-                // Datei öffnen
+                // Datei öffnen; bei readOnly schreibgeschützt ( 27.11.26: vorher immer beschreibbar )
                 workbook = excelApp.Workbooks.Open(
                     fileName,
-                    ReadOnly: false,
-                    Editable: true
+                    ReadOnly: readOnly,
+                    Editable: !readOnly
                 );
 
             }
@@ -309,12 +331,23 @@ namespace DbaseFrame
                 Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
                 return ( false );
             }   // end: try workbook
+            workbookOpen = true;
             return ( true );
 
         }   // end: OpenWorkbook
 
+        /// <summary>
+        /// Speichert die Mappe unter ihrem Namen. Bei readOnly wird nicht gespeichert ( false ), sonst würde
+        /// Excel scheitern oder eine unsichtbare Rückfrage zeigen.
+        /// </summary>
+        /// <returns>Erfolg</returns>
         public bool SaveWorkbook( )
         {
+            if ( readOnly )
+            {   // nur zum Lesen geöffnet
+                Console.WriteLine( "SaveWorkbook: Mappe ist nur zum Lesen geöffnet, nicht gespeichert." );
+                return ( false );
+            }   // ende: nur zum Lesen geöffnet
             try
             {
                 workbook.Save();
@@ -336,13 +369,19 @@ namespace DbaseFrame
         /// <summary>
         /// Saves the current workbook with a new file name. Returns true if successful, false otherwise.
         /// On success, updates the internal fileName to the new file name.
+        /// Der Name wird vervollständigt ( .xlsx, voller Pfad ); eine vorhandene Datei gleichen Namens wird
+        /// ohne Rückfrage überschrieben ( Excels Rückfragen sind währenddessen aus, im unsichtbaren Excel
+        /// würde sonst das Programm hängen ). Danach ist die Mappe beschreibbar ( readOnly = false ).
         /// </summary>
         /// <param name="newFileName"></param>
         /// <returns>boolean about the success of the operation</returns>
         public bool SaveWorkbookAs( string newFileName )
         {
+            newFileName = CompleteTargetName( newFileName );
+            bool alteRueckfragen = excelApp.DisplayAlerts;
             try
             {
+                excelApp.DisplayAlerts = false;
                 workbook.SaveAs( newFileName );
             }
             catch ( COMException comEx )
@@ -355,8 +394,13 @@ namespace DbaseFrame
                 Console.WriteLine( "Allgemeiner Fehler: " + ex.Message );
                 return ( false );
             }   // end: try workbook
+            finally
+            {   // Rückfragen wie vorher
+                excelApp.DisplayAlerts = alteRueckfragen;
+            }   // Ende: Rückfragen wie vorher
 
             fileName = newFileName;
+            readOnly = false;
             return ( true );
 
         }   // end: SaveWorkbookAs
@@ -368,25 +412,57 @@ namespace DbaseFrame
         /// </summary>
         public void CleanSheet( )
         {
-            worksheet = excelApp.ActiveSheet.Worksheet;
+            // das gewählte Blatt ( 27.11.26: vorher ActiveSheet.Worksheet, diese Eigenschaft gibt es nicht )
+            worksheet = SelectedSheet( );
             worksheet.Cells.Clear();
 
         }   // end: CleanSheet
 
+        /* ------------------------------ Blätter ( 27.11.26 )
+         *  - Nummern sind 0-basiert ( erstes Blatt = 0 ), Excel zählt ab 1: Umrechnung hier, wie bei den Zellen
+         *  - gezählt werden nur Arbeitsblätter ( Worksheets ), keine Diagrammblätter
+         *  - sheetNumber ( aus ReadSheetNames, SelectSheet oder NewSheet ) bestimmt das Blatt für Lesen und
+         *    Schreiben; sonst gilt das aktive Blatt dieser Mappe
+        */
+
+        /// <summary>
+        /// Das Blatt für Lesen und Schreiben: das Blatt sheetNumber, sonst das aktive Blatt dieser Mappe.
+        /// </summary>
+        Excel.Worksheet SelectedSheet( )
+        {
+            if ( ( sheetNumber >= 0 ) && ( sheetNumber < workbook.Worksheets.Count ) )
+                return ( (Excel.Worksheet)workbook.Worksheets[ sheetNumber + 1 ] );   // Excel zählt ab 1
+            return ( (Excel.Worksheet)workbook.ActiveSheet );
+
+        }   // Ende: Excel.Worksheet SelectedSheet
+
+        /// <summary>
+        /// Wählt das Blatt für die folgenden Lese- und Schreibaufrufe ohne Dialog.
+        /// </summary>
+        /// <param name="numTable">Nummer des Blatts, 0 = erstes</param>
+        /// <returns>true, wenn es das Blatt gibt; sonst bleibt die Wahl unverändert</returns>
+        public bool SelectSheet( int numTable )
+        {
+            if ( ( numTable < 0 ) || ( numTable >= workbook.Worksheets.Count ) )
+                return ( false );
+            sheetNumber = numTable;
+            return ( true );
+
+        }   // Ende: bool SelectSheet
+
         /// <summary>
         /// Returns the number of a chosen sheet. A dialog will open to let you choose from
-        /// the found sheet names.
+        /// the found sheet names. Nummer 0-basiert; ohne Auswahl -1 ( dann gilt das aktive Blatt ).
         /// </summary>
         /// <returns>the number</returns>
         public int ReadSheetNames( )
         {
-            // die Daten auslesen
-            Excel.Sheets sheetsList = workbook.Sheets;
+            // die Daten auslesen ( nur Arbeitsblätter, wie SelectedSheet )
+            Excel.Sheets sheetsList = workbook.Worksheets;
 
             if ( sheetsList.Count > 0 )
             {
                 List<string> locSheets = new List<string>();
-                sheets = new string[ sheetsList.Count ];
 
                 foreach ( Excel.Worksheet locSheet in sheetsList )
                 {
@@ -407,17 +483,16 @@ namespace DbaseFrame
         /// <summary>
         /// Direct query for the sheet name.
         /// </summary>
-        /// <param name="numTable">number of the sheet</param>
+        /// <param name="numTable">number of the sheet, 0 = erstes</param>
         /// <returns>the name or 'string.empty'</returns>
         public string GetSheetName( int numTable )
         {
-            // die Daten auslesen
-            Excel.Sheets sheetsList = workbook.Sheets;
+            // Excel zählt ab 1 ( 27.11.26: vorher Sheets[ 0 ], "Ungültiger Index" bzw. falsches Blatt )
+            Excel.Sheets sheetsList = workbook.Worksheets;
 
-            if ( ( sheetsList.Count > 0 )
-                && ( sheetsList.Count > numTable ) )
+            if ( ( numTable >= 0 ) && ( numTable < sheetsList.Count ) )
             {
-                return ( sheetsList[ numTable ].Name );
+                return ( ( (Excel.Worksheet)sheetsList[ numTable + 1 ] ).Name );
             }
             return ( string.Empty );
 
@@ -426,75 +501,69 @@ namespace DbaseFrame
         /// <summary>
         /// Sets the name of a chosen sheet.
         /// </summary>
-        /// <param name="numTable"></param>
+        /// <param name="numTable">number of the sheet, 0 = erstes</param>
         /// <param name="newName"></param>
         public void SetSheetName( int numTable, string newName )
         {
-            // die Daten auslesen
-            Excel.Sheets sheetsList = workbook.Sheets;
-            if ( ( sheetsList.Count > 0 )
-                && ( sheetsList.Count > numTable ) )
+            // Excel zählt ab 1
+            Excel.Sheets sheetsList = workbook.Worksheets;
+            if ( ( numTable >= 0 ) && ( numTable < sheetsList.Count ) )
             {
-                sheetsList[ numTable ].Name = newName;
+                ( (Excel.Worksheet)sheetsList[ numTable + 1 ] ).Name = newName;
             }
 
         }   // end: SetSheetName
 
         /// <summary>
-        /// Creates a new sheet in the workbook.
+        /// Creates a new sheet at the end of the workbook and selects it ( sheetNumber ).
+        /// Ohne Namen vergibt Excel einen ( ein leerer Name wäre ein Fehler ).
         /// </summary>
         /// <param name="sheetName"></param>
-        /// <returns>the number of the new sheet</returns>
+        /// <returns>the number of the new sheet, 0-basiert</returns>
         public int NewSheet( string sheetName = "" )
         {
-            Excel.Worksheet newSheet = workbook.Sheets.Add();
-            newSheet.Name = sheetName;
+            // ans Ende anhängen ( 27.11.26: vorher vor dem aktiven Blatt, Rückgabe ab 1, leerer Name = Fehler )
+            Excel.Sheets sheetsList = workbook.Worksheets;
+            Excel.Worksheet newSheet =
+                (Excel.Worksheet)sheetsList.Add( After: sheetsList[ sheetsList.Count ] );
+            if ( !string.IsNullOrWhiteSpace( sheetName ) )
+                newSheet.Name = sheetName;
 
-            return ( newSheet.Index );
+            sheetNumber = sheetsList.Count - 1;
+            return ( sheetNumber );
 
         }   // end: NewSheet
+
+        /* ------------------------------ Lesen ( 27.11.26 )
+         *  - gelesen wird das Datenrechteck des aktiven Blatts: der benutzte Bereich ( UsedRange ), auch wenn er
+         *    nicht in A1 beginnt ( vorher ab A1 gezählt, eine versetzte Tabelle verlor dadurch Daten )
+         *  - alle Werte kommen mit einem Zugriff aus Excel ( Value2 als object[,] ), danach wird jeder Wert
+         *    einzeln geprüft und umgewandelt ( vorher eine Abfrage je Zelle: 2000 x 5 Zellen 23 s, jetzt 12 ms )
+         *  - leere Zellen ergeben Standardwerte ( "" bzw. 0 )
+        */
 
         /// <summary>
         /// Reads the table's data types as 2d-array of
         /// strings into 'valuesTypesArray'. Needed for the analysis
-        /// of foreign data.
+        /// of foreign data. Ganzes Datenrechteck einschließlich Kopfzeile; leere Zelle: leerer Text.
         /// </summary>
         public void ReadTypes( )
         {
-            // get the dimensions from Excel and create the array
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
-
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
-
-            int startRow = 1;
-            int startCol = 1;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
+            // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" );
+            // ohne Prüfung des Rechtecks: ReadTypes dient der Untersuchung fremder Daten
+            object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
+            int rowCount = werte.GetLength( 0 );
+            int colCount = werte.GetLength( 1 );
 
             valuesTypesArray = new string[ colCount, rowCount ];
 
-            string xDim1 = GetColumnFromNumber( startCol );
-            string xDim2 = GetColumnFromNumber( endCol );
-            string yDim1 = startRow.ToString();
-            string yDim2 = rowCount.ToString();
-
-            // a dream would be the next line, but it is not save for input
-            // valuesTypesArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
-
-            for ( int rowInd = startRow; rowInd < endRow; rowInd++ )
+            for ( int rowInd = 1; rowInd <= rowCount; rowInd++ )
             {
-                string temp;
-                for ( int colInd = startCol; colInd < endCol; colInd++ )
+                for ( int colInd = 1; colInd <= colCount; colInd++ )
                 {
-                    string colName = GetColumnFromNumber( colInd );
-                    // beware: the cell index works like this coming line
-                    temp =
-                        worksheet.Cells[ rowInd, colName].GetType().ToString()
-                            ?? string.Empty;
-
-                    valuesTypesArray[ colInd, rowInd ] =  temp ;
+                    // Typ des Zellwerts; Excel zählt ab 1, das Array ab 0
+                    object? wert = werte[ rowInd, colInd ];
+                    valuesTypesArray[ colInd - 1, rowInd - 1 ] = wert?.GetType().ToString() ?? string.Empty;
 
                 }   // end: for ( int colInd
 
@@ -504,39 +573,34 @@ namespace DbaseFrame
 
         /// <summary>
         /// Reads the table's data as 2d-array of
-        /// strings into 'valuesStringArray'.
+        /// strings into 'valuesStringArray' ( [ spalte, zeile ] ).
+        /// Bei useHeader steht die erste Zeile in 'headers' und nicht in den Daten ( wie ExcelOleDb ).
+        /// Excel-Fehler erscheinen als Fehlertext ( #DIV/0!, #NV, ... ).
         /// </summary>
         public void ReadStrings()
         {
-            // get the dimensions from Excel and create the array
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
+            // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
+            object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
+            // die Daten haben zu passen, sonst Fehlermeldung ( CheckDataRectangle )
+            CheckDataRectangle( werte, firstRow, firstCol );
+            int rowCount = werte.GetLength( 0 );
+            int colCount = werte.GetLength( 1 );
 
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
+            /* Kopfzeile wie in ExcelOleDb ( HDR=YES ):
+             *  - useHeader: erste Zeile des Datenrechtecks nach 'headers', die Daten beginnen in der zweiten
+             *  - sonst: alle Zeilen sind Daten, 'headers' enthält die Spaltennamen des Blatts ( z. B. B, C, ... )
+            */
+            ReadHeaders( werte, firstCol );
+            int startRow = useHeader ? 2 : 1;
 
-            int startRow = 1;
-            int startCol = 1;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
+            valuesStringArray = new string[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
 
-            valuesStringArray = new string[ colCount, rowCount ];
-
-            // a dream would be the next line, but it is not save for input
-            // valuesStringArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
-
-            for ( int rowInd = startRow; rowInd <= endRow; rowInd++)
+            for ( int rowInd = startRow; rowInd <= rowCount; rowInd++ )
             {
-                string temp;
-                for (int colInd = startCol; colInd <= endCol; colInd++)
+                for ( int colInd = 1; colInd <= colCount; colInd++ )
                 {
-                    string colName = GetColumnFromNumber(colInd);
-                    // beware: the cell index works like this coming line
-                    temp =
-                        worksheet.Cells[rowInd, colName].ToString()
-                            ?? string.Empty;
-
-                    valuesStringArray[ colInd, rowInd ] = temp;
+                    // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0 ( Datenzeilen ab startRow )
+                    valuesStringArray[ colInd - 1, rowInd - startRow ] = CellText( werte[ rowInd, colInd ] );
 
                 }   // end: for ( int colInd
 
@@ -545,14 +609,235 @@ namespace DbaseFrame
         }   // end: ReadStrings
 
         /// <summary>
+        /// Füllt 'headers': bei useHeader die Texte der ersten Zeile des Datenrechtecks,
+        /// sonst die Spaltennamen des Blatts ( das Rechteck kann z. B. in Spalte B beginnen ).
+        /// </summary>
+        /// <param name="werte">Werte des Datenrechtecks [ zeile, spalte ], ab 1</param>
+        /// <param name="firstCol">erste Spalte des Rechtecks im Blatt ( ab 1 )</param>
+        void ReadHeaders( object?[,] werte, int firstCol )
+        {
+            int colCount = werte.GetLength( 1 );
+            headers = new string[ colCount ];
+            for ( int colInd = 1; colInd <= colCount; colInd++ )
+            {   // je Spalte
+                if ( useHeader )
+                    headers[ colInd - 1 ] = CellText( werte[ 1, colInd ] );
+                else
+                    headers[ colInd - 1 ] = GetColumnFromNumber( firstCol + colInd - 1 );
+            }   // Ende: je Spalte
+
+        }   // Ende: void ReadHeaders
+
+        /// <summary>
+        /// Holt die Werte des Datenrechtecks ( benutzter Bereich des aktiven Blatts ) mit einem Zugriff.
+        /// </summary>
+        /// <param name="firstCol">erste Spalte des Rechtecks im Blatt ( ab 1 )</param>
+        /// <param name="firstRow">erste Zeile des Rechtecks im Blatt ( ab 1 )</param>
+        /// <returns>Werte [ zeile, spalte ], ab 1 gezählt wie in Excel</returns>
+        object?[,] ReadUsedRangeValues( out int firstCol, out int firstRow )
+        {
+            // das gewählte Blatt ( 27.11.26: vorher ActiveSheet.Worksheet, diese Eigenschaft gibt es nicht )
+            worksheet = SelectedSheet( );
+            Excel.Range usedRange = worksheet.UsedRange;
+            firstCol = usedRange.Column;
+            firstRow = usedRange.Row;
+            return ( RangeValues( usedRange ) );
+
+        }   // Ende: object?[,] ReadUsedRangeValues
+
+        /// <summary>
+        /// Werte eines Bereichs mit einem Zugriff ( Value2 ). Eine einzelne Zelle liefert in Excel keinen
+        /// Array, sie wird in ein Feld 1 x 1 gelegt ( ab 1 wie Excel ).
+        /// </summary>
+        /// <param name="range">der Bereich</param>
+        /// <returns>Werte [ zeile, spalte ], ab 1 gezählt</returns>
+        static object?[,] RangeValues( Excel.Range range )
+        {
+            object? werte = range.Value2;
+            if ( werte is object[,] feld )
+                return ( feld );
+            object?[,] einzeln = (object?[,])Array.CreateInstance(
+                typeof( object ), new[] { 1, 1 }, new[] { 1, 1 } );
+            einzeln[ 1, 1 ] = werte;
+            return ( einzeln );
+
+        }   // Ende: object?[,] RangeValues
+
+        /// <summary>
+        /// Zellwert als Text: leer = "", Excel-Fehler als Fehlertext ( #DIV/0!, #NV, ... ),
+        /// Zahlen in der Schreibweise von Windows ( z. B. 1,5 ).
+        /// </summary>
+        static string CellText( object? wert )
+        {
+            if ( wert == null )
+                return ( string.Empty );
+            // Value2 liefert Zahlen als double, einen int nur für Excel-Fehler
+            if ( wert is int code )
+                return ( ErrorText( code ) );
+            return ( wert.ToString() ?? string.Empty );
+
+        }   // Ende: string CellText
+
+        /// <summary>
+        /// Zellwert als Zahl: Zahl ( auch Datum als Seriennummer ) unverändert, WAHR = 1 / FALSCH = 0,
+        /// Text mit einer Zahl in der Schreibweise von Windows ( z. B. "1,5" ) umgewandelt;
+        /// sonst ( leer, anderer Text, Excel-Fehler ) 0.
+        /// </summary>
+        static double CellNumber( object? wert )
+        {
+            switch ( wert )
+            {   // je nach Typ des Zellwerts
+                case double zahl:
+                    return ( zahl );
+                case bool wahr:
+                    return ( wahr ? 1.0 : 0.0 );
+                case string text:
+                    return ( double.TryParse( text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture,
+                        out double umgewandelt ) ? umgewandelt : 0.0 );
+                default:
+                    return ( 0.0 );
+            }   // Ende: je nach Typ des Zellwerts
+
+        }   // Ende: double CellNumber
+
+        /// <summary>
+        /// Fehlertext zu einem Excel-Fehlercode aus Value2 ( Schreibweise des deutschen Excel ).
+        /// </summary>
+        static string ErrorText( int code )
+        {
+            switch ( code )
+            {   // Excel-Fehlercodes ( CVErr )
+                case -2146826288: return ( "#NULL!" );
+                case -2146826281: return ( "#DIV/0!" );
+                case -2146826273: return ( "#WERT!" );
+                case -2146826265: return ( "#BEZUG!" );
+                case -2146826259: return ( "#NAME?" );
+                case -2146826252: return ( "#ZAHL!" );
+                case -2146826246: return ( "#NV" );
+                default: return ( "#FEHLER " + code );
+            }   // Ende: Excel-Fehlercodes ( CVErr )
+
+        }   // Ende: string ErrorText
+
+        /// <summary>
+        /// Leere Zelle: kein Wert oder leerer Text.
+        /// </summary>
+        static bool IsEmptyCell( object? wert )
+        {
+            return ( ( wert == null ) || ( ( wert is string text ) && ( text.Length == 0 ) ) );
+
+        }   // Ende: bool IsEmptyCell
+
+        /* Die Daten haben zu passen, sonst Fehlermeldung ( Vorgabe vom 27.11.26 )
+         *  - ein Datenrechteck ohne jeden Inhalt ( leeres Blatt ) ist kein Datensatz
+         *  - eine ganz leere erste oder letzte Zeile bzw. Spalte gehört nicht zu den Daten, sondern meist zu
+         *    Formatierung oder Resten außerhalb ( Excel zählt sie zum benutzten Bereich ); sie würde sonst als
+         *    Muster aus lauter Standardwerten gelesen
+         *  - einzelne leere Zellen innerhalb der Daten bekommen weiter Standardwerte
+        */
+
+        /// <summary>
+        /// Prüft das Datenrechteck: nicht leer, keine ganz leere Rand-Zeile oder -Spalte.
+        /// </summary>
+        /// <param name="werte">Werte [ zeile, spalte ], ab 1</param>
+        /// <param name="firstRow">erste Zeile des Rechtecks im Blatt</param>
+        /// <param name="firstCol">erste Spalte des Rechtecks im Blatt</param>
+        /// <exception cref="InvalidDataException">das Rechteck passt nicht</exception>
+        void CheckDataRectangle( object?[,] werte, int firstRow, int firstCol )
+        {
+            int rowCount = werte.GetLength( 0 );
+            int colCount = werte.GetLength( 1 );
+
+            bool ZeileLeer( int zeile )
+            {   // ganze Zeile ohne Inhalt?
+                for ( int spalte = 1; spalte <= colCount; spalte++ )
+                    if ( !IsEmptyCell( werte[ zeile, spalte ] ) )
+                        return ( false );
+                return ( true );
+            }   // Ende: ZeileLeer
+            bool SpalteLeer( int spalte )
+            {   // ganze Spalte ohne Inhalt?
+                for ( int zeile = 1; zeile <= rowCount; zeile++ )
+                    if ( !IsEmptyCell( werte[ zeile, spalte ] ) )
+                        return ( false );
+                return ( true );
+            }   // Ende: SpalteLeer
+
+            string blatt = "Blatt '" + worksheet.Name + "'";
+            if ( ( rowCount == 1 ) && ( colCount == 1 ) && IsEmptyCell( werte[ 1, 1 ] ) )
+                throw new InvalidDataException( "ExcelInterop: " + blatt + " enthält keine Daten." );
+            if ( ZeileLeer( 1 ) )
+                throw new InvalidDataException( "ExcelInterop: " + blatt + ", Zeile " + firstRow
+                    + " ist leer, gehört aber zum Datenrechteck ( Formatierung oder Reste entfernen )." );
+            if ( ZeileLeer( rowCount ) )
+                throw new InvalidDataException( "ExcelInterop: " + blatt + ", Zeile " + ( firstRow + rowCount - 1 )
+                    + " ist leer, gehört aber zum Datenrechteck ( Formatierung oder Reste entfernen )." );
+            if ( SpalteLeer( 1 ) )
+                throw new InvalidDataException( "ExcelInterop: " + blatt + ", Spalte " + GetColumnFromNumber( firstCol )
+                    + " ist leer, gehört aber zum Datenrechteck ( Formatierung oder Reste entfernen )." );
+            if ( SpalteLeer( colCount ) )
+                throw new InvalidDataException( "ExcelInterop: " + blatt + ", Spalte "
+                    + GetColumnFromNumber( firstCol + colCount - 1 )
+                    + " ist leer, gehört aber zum Datenrechteck ( Formatierung oder Reste entfernen )." );
+
+        }   // Ende: void CheckDataRectangle
+
+        /// <summary>
+        /// Prüft eine Matrix( x, y ) vor dem Schreiben: NaN und Unendlich kann Excel nicht speichern
+        /// ( es schreibt #ZAHL! ), daher Fehlermeldung statt unbrauchbarer Zellen.
+        /// </summary>
+        /// <exception cref="ArgumentException">NaN oder Unendlich in der Matrix</exception>
+        static void CheckFinite( double[,] matrix, string funktion )
+        {
+            for ( int x = 0; x < matrix.GetLength( 0 ); x++ )
+                for ( int y = 0; y < matrix.GetLength( 1 ); y++ )
+                    if ( !double.IsFinite( matrix[ x, y ] ) )
+                        throw new ArgumentException( "ExcelInterop." + funktion + ": Wert an ( " + x + ", " + y
+                            + " ) ist " + matrix[ x, y ] + ", Excel kann nur endliche Zahlen speichern." );
+
+        }   // Ende: void CheckFinite
+
+        /// <summary>
+        /// Prüft ein Feld vor dem Schreiben auf NaN und Unendlich ( wie CheckFinite für Matrizen ).
+        /// </summary>
+        /// <exception cref="ArgumentException">NaN oder Unendlich im Feld</exception>
+        static void CheckFinite( double[] feld, string funktion )
+        {
+            for ( int x = 0; x < feld.Length; x++ )
+                if ( !double.IsFinite( feld[ x ] ) )
+                    throw new ArgumentException( "ExcelInterop." + funktion + ": Wert an ( " + x + " ) ist "
+                        + feld[ x ] + ", Excel kann nur endliche Zahlen speichern." );
+
+        }   // Ende: void CheckFinite
+
+        /// <summary>
+        /// Vervollständigt einen Zielnamen: fehlende Endung wird ".xlsx", ein relativer Name wird zum vollen
+        /// Pfad ( Programmverzeichnis ). So prüft File.Exists dieselbe Datei, die Excel speichert.
+        /// </summary>
+        static string CompleteTargetName( string name )
+        {
+            if ( string.IsNullOrWhiteSpace( name ) )
+                return ( name );
+            if ( Path.GetExtension( name ) == "" )
+                name += ".xlsx";
+            return ( Path.GetFullPath( name ) );
+
+        }   // Ende: string CompleteTargetName
+
+        /// <summary>
         /// Writes the 2d-array to the active sheet.
         /// Overwrites anything in its way and starts at A1.
         /// </summary>
         public void WriteStrings()
         {
+            // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
+            worksheet = SelectedSheet( );
+
             // calculate the Excel range to write to
             int colCount = valuesStringArray.GetLength( 0 );
             int rowCount = valuesStringArray.GetLength( 1 );
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
             int startCol = 1;
             int endCol = startCol + colCount - 1;
@@ -565,47 +850,66 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            // send the data
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
+            // send the data ( Excel erwartet [ zeile, spalte ], siehe ToExcelOrder )
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesStringArray );
 
         } // end: WriteStrings
 
         /// <summary>
+        /// Übergabe an Excel: Die Klasse hält jede Matrix als Matrix( x, y ) wie Punkt( x, y ), also
+        /// [ spalte, zeile ]. Excel erwartet bei Value2 dagegen [ zeile, spalte ] ( geprüft 27.11.26 ).
+        /// Deshalb wird nur hier, unmittelbar vor dem Schreiben, in eine Kopie in Excels Reihenfolge umgesetzt.
+        /// </summary>
+        /// <param name="matrix">Matrix( x, y )</param>
+        /// <returns>Kopie [ y, x ] für Range.Value2</returns>
+        static T[,] ToExcelOrder<T>( T[,] matrix )
+        {
+            int colCount = matrix.GetLength( 0 );
+            int rowCount = matrix.GetLength( 1 );
+            T[,] excelFeld = new T[ rowCount, colCount ];
+            for ( int x = 0; x < colCount; x++ )
+                for ( int y = 0; y < rowCount; y++ )
+                    excelFeld[ y, x ] = matrix[ x, y ];
+            return ( excelFeld );
+
+        }   // Ende: T[,] ToExcelOrder
+
+        /// <summary>
         /// Reads a subset of the table's data as a 2D array of strings.
+        /// Koordinaten im Blatt ab 1, X = Spalte, Y = Zeile, Anfang und Ende eingeschlossen.
         /// </summary>
         /// <param name="startX">upper left X coordinate</param>
         /// <param name="startY">upper left Y coordinate</param>
         /// <param name="endX">lower right X coordinate</param>
         /// <param name="endY">lower right Y coordinate</param>
         /// <returns>subset of the table's data as a 2D array of strings</returns>
+        /// <exception cref="ArgumentException">Koordinate unter 1 oder Ende vor dem Anfang</exception>
         public string[,] ReadStrings( int startX, int startY, int endX, int endY )
         {
-            // get the dimensions from Excel and create the array
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
+            // Bereich prüfen: Excel zählt ab 1, Ende nicht vor dem Anfang ( sonst still leeres Ergebnis )
+            if ( ( startX < 1 ) || ( startY < 1 ) || ( endX < startX ) || ( endY < startY ) )
+                throw new ArgumentException(
+                    "ExcelInterop.ReadStrings: Bereich ungültig ( ab 1, Ende nicht vor dem Anfang )" );
 
-            int startRow = startX;
-            int startCol = startY;
-            int endRow = endX;
-            int endCol = endY;
+            // das gewählte Blatt ( 27.11.26: vorher ActiveSheet.Worksheet, diese Eigenschaft gibt es nicht )
+            worksheet = SelectedSheet( );
+
+            // alle Werte des Bereichs mit einem Zugriff ( Abschnitt "Lesen" ); Cells[ Zeile, Spalte ]
+            Excel.Range bereich = worksheet.Range[
+                worksheet.Cells[ startY, startX ], worksheet.Cells[ endY, endX ] ];
+            object?[,] werte = RangeValues( bereich );
 
             string[,] locStringArray = new string[ endX - startX + 1, endY - startY + 1 ];
 
             // a dream would be the next line, but it is not save for input
             // valuesStringArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as string[,];
 
-            for ( int rowInd = startRow; rowInd <= endRow; rowInd++ )
+            for ( int rowInd = 1; rowInd <= werte.GetLength( 0 ); rowInd++ )
             {
-                string temp;
-                for ( int colInd = startCol; colInd <= endCol; colInd++ )
+                for ( int colInd = 1; colInd <= werte.GetLength( 1 ); colInd++ )
                 {
-                    string colName = GetColumnFromNumber(colInd);
-                    // beware: the cell index works like this coming line
-                    temp =
-                        worksheet.Cells[ rowInd, colName ].ToString()
-                            ?? string.Empty;
-
-                    locStringArray[ colInd - startX, rowInd - startY ] = temp;
+                    // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0
+                    locStringArray[ colInd - 1, rowInd - 1 ] = CellText( werte[ rowInd, colInd ] );
 
                 }   // end: for ( int colInd
 
@@ -617,13 +921,23 @@ namespace DbaseFrame
 
         /// <summary>
         /// Writes the 2d-array to the active sheet at the specified coordinates.
-        /// Overwrites anything in its way.
+        /// Overwrites anything in its way. Koordinaten im Blatt ab 1, X = Spalte, Y = Zeile.
         /// </summary>
+        /// <exception cref="ArgumentException">Koordinate unter 1</exception>
         public void WriteStrings( string[,] dataArray, int startX, int startY )
         {
+            // Koordinaten prüfen: Excel zählt ab 1
+            if ( ( startX < 1 ) || ( startY < 1 ) )
+                throw new ArgumentException( "ExcelInterop.WriteStrings: Koordinaten ab 1" );
+
+            // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
+            worksheet = SelectedSheet( );
+
             // calculate the Excel range to write to
             int colCount = dataArray.GetLength( 0 );
             int rowCount = dataArray.GetLength( 1 );
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
             int startCol = startX;
             int endCol = startCol + colCount - 1;
@@ -636,27 +950,29 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
+            // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( dataArray );
 
         } // end: WriteStrings
 
         /// <summary>
         /// Appends the 2d-array to the active sheet after the last row.
+        /// Unter dem Datenrechteck, ab dessen erster Spalte; auf einem leeren Blatt ab A1.
         /// </summary>
-        /// <param name="dataArray">2d string array</param>
+        /// <param name="dataArray">2d string array, Matrix( x, y )</param>
         public void AppendRowStringMatrix(string[,] dataArray)
         {
-            // Find last used row
-            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
-            int lastRow = lastCell.Row;
+            // erste freie Zeile unter dem Datenrechteck ( 27.11.26: vorher SpecialCells( xlCellTypeLastCell ),
+            // das merkt sich die frühere letzte Zeile auch nach dem Löschen )
+            NextFreeRow( out int startRow, out int startCol );
 
             // calculate the Excel range to write to
             int colCount = dataArray.GetLength(0);
             int rowCount = dataArray.GetLength(1);
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
-            int startCol = 1;
             int endCol = startCol + colCount - 1;
-            int startRow = lastRow + 1;
             int endRow = startRow + rowCount - 1;
 
             // die Strings
@@ -665,74 +981,93 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+            // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = ToExcelOrder( dataArray );
 
         } // end: AppendRowStringMatrix
 
         /// <summary>
         /// Writes the array to the active sheet after the last row.
+        /// Unter dem Datenrechteck, ab dessen erster Spalte; auf einem leeren Blatt ab A1.
         /// </summary>
-        /// <param name="dataArray">string array</param>
+        /// <param name="dataArray">string array ( eine Zeile )</param>
         public void AppendRowStringField(string[] dataArray)
         {
-            // Find last used row
-            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
-            int lastRow = lastCell.Row;
+            // erste freie Zeile unter dem Datenrechteck ( 27.11.26: vorher SpecialCells( xlCellTypeLastCell ),
+            // das merkt sich die frühere letzte Zeile auch nach dem Löschen )
+            NextFreeRow( out int startRow, out int startCol );
 
             // calculate the Excel range to write to
             int colCount = dataArray.Length;
-            int rowCount = 1;
+            if ( colCount == 0 )
+                return;   // nichts zu schreiben
 
-            int startCol = 1;
             int endCol = startCol + colCount - 1;
-            int startRow = lastRow + 1;
-            int endRow = startRow + rowCount - 1;
 
             // die Strings
             string xDim1 = GetColumnFromNumber(startCol);
             string xDim2 = GetColumnFromNumber(endCol);
             string yDim1 = startRow.ToString();
-            string yDim2 = endRow.ToString();
 
-            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+            // ein eindimensionales Feld schreibt Excel als eine Zeile ( keine Umsetzung nötig )
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim1].Value2 = dataArray;
 
         } // end: AppendRowStringField
 
         /// <summary>
+        /// Erste freie Zeile unter dem Datenrechteck des aktiven Blatts und dessen erste Spalte;
+        /// auf einem leeren Blatt Zeile 1, Spalte 1. Setzt 'worksheet'.
+        /// </summary>
+        /// <param name="startRow">erste freie Zeile ( ab 1 )</param>
+        /// <param name="startCol">erste Spalte des Datenrechtecks ( ab 1 )</param>
+        void NextFreeRow( out int startRow, out int startCol )
+        {
+            // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
+            worksheet = SelectedSheet( );
+            if ( excelApp.WorksheetFunction.CountA( worksheet.Cells ) == 0 )
+            {   // leeres Blatt
+                startRow = 1;
+                startCol = 1;
+                return;
+            }   // ende: leeres Blatt
+            Excel.Range usedRange = worksheet.UsedRange;
+            // die Daten haben zu passen: keine leere Rand-Zeile oder -Spalte ( sonst Lücke beim Anhängen )
+            CheckDataRectangle( RangeValues( usedRange ), usedRange.Row, usedRange.Column );
+            startRow = usedRange.Row + usedRange.Rows.Count;
+            startCol = usedRange.Column;
+
+        }   // Ende: void NextFreeRow
+
+        /// <summary>
         /// Reads the table's data as anonymous array of
-        /// doubles into 'valuesDoubleArray'.
+        /// doubles into 'valuesDoubleArray' ( [ spalte, zeile ] ). Umwandlung je Zelle siehe CellNumber
+        /// ( leer, Text ohne Zahl, Excel-Fehler: 0 ).
+        /// Bei useHeader steht die erste Zeile in 'headers' und nicht in den Daten ( wie ReadStrings ).
         /// </summary>
         public void ReadDoubles()
         {
-            // get the dimensions from Excel and create the array
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
+            // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
+            object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
+            // die Daten haben zu passen, sonst Fehlermeldung ( CheckDataRectangle )
+            CheckDataRectangle( werte, firstRow, firstCol );
+            int rowCount = werte.GetLength( 0 );
+            int colCount = werte.GetLength( 1 );
 
-            int rowCount = usedRange.Rows.Count;
-            int colCount = usedRange.Columns.Count;
+            // Kopfzeile wie in ReadStrings ( useHeader: erste Zeile nach 'headers', Daten ab der zweiten )
+            ReadHeaders( werte, firstCol );
+            int startRow = useHeader ? 2 : 1;
 
-            int startRow = 1;
-            int startCol = 1;
-            int endRow = startRow + rowCount - 1;
-            int endCol = startCol + colCount - 1;
-
-            valuesDoubleArray = new double[ colCount, rowCount ];
+            valuesDoubleArray = new double[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
 
             // a dream would be the next line, but it is not save for input
             // valuesDoubleArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as double[,];
 
-            for (int rowInd = startRow; rowInd <= endRow; rowInd++)
+            for (int rowInd = startRow; rowInd <= rowCount; rowInd++)
             {
-                double temp = 0;
-                for (int colInd = startCol; colInd <= endCol; colInd++)
+                for (int colInd = 1; colInd <= colCount; colInd++)
                 {
-                    string colName = GetColumnFromNumber(colInd);
-                    // beware: the cell index works like this coming lines
-                    if ( worksheet.Cells[rowInd, colName].GetType() == typeof(double))
-                        temp =
-                            worksheet.Cells[rowInd, colName];
-
-                    valuesDoubleArray[ colInd, rowInd ] = temp;
+                    // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0 ( Datenzeilen ab startRow )
+                    valuesDoubleArray[ colInd - 1, rowInd - startRow ] = CellNumber( werte[ rowInd, colInd ] );
 
                 }   // end: for ( int colInd
 
@@ -746,9 +1081,17 @@ namespace DbaseFrame
         /// </summary>
         public void WriteDoubles( )
         {
+            // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            CheckFinite( valuesDoubleArray, "WriteDoubles" );
+
+            // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
+            worksheet = SelectedSheet( );
+
             // calculate the Excel range to write to
             int colCount = valuesDoubleArray.GetLength( 0 );
             int rowCount = valuesDoubleArray.GetLength( 1 );
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
             int startCol = 1;
             int endCol = startCol + colCount - 1;
@@ -761,46 +1104,47 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesDoubleArray;
+            // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesDoubleArray );
 
         } // end: WriteDoubles
 
         /// <summary>
         /// Reads a subset of the table's data as a 2D array of doubles.
+        /// Koordinaten im Blatt ab 1, X = Spalte, Y = Zeile, Anfang und Ende eingeschlossen.
         /// </summary>
         /// <param name="startX">upper left X coordinate</param>
         /// <param name="startY">upper left Y coordinate</param>
         /// <param name="endX">lower right X coordinate</param>
         /// <param name="endY">lower right Y coordinate</param>
         /// <returns>subset of the table's data as a 2D array of doubles</returns>
+        /// <exception cref="ArgumentException">Koordinate unter 1 oder Ende vor dem Anfang</exception>
         public double[,] ReadDoubles( int startX, int startY, int endX, int endY )
         {
-            // get the dimensions from Excel and create the array
-            Excel.Range usedRange = excelApp.ActiveSheet.UsedRange;
-            worksheet = excelApp.ActiveSheet.Worksheet;
+            // Bereich prüfen: Excel zählt ab 1, Ende nicht vor dem Anfang ( sonst still leeres Ergebnis )
+            if ( ( startX < 1 ) || ( startY < 1 ) || ( endX < startX ) || ( endY < startY ) )
+                throw new ArgumentException(
+                    "ExcelInterop.ReadDoubles: Bereich ungültig ( ab 1, Ende nicht vor dem Anfang )" );
 
-            int startRow = startX;
-            int startCol = startY;
-            int endRow = endX;
-            int endCol = endY;
+            // das gewählte Blatt ( 27.11.26: vorher ActiveSheet.Worksheet, diese Eigenschaft gibt es nicht )
+            worksheet = SelectedSheet( );
+
+            // alle Werte des Bereichs mit einem Zugriff ( Abschnitt "Lesen" ); Cells[ Zeile, Spalte ]
+            Excel.Range bereich = worksheet.Range[
+                worksheet.Cells[ startY, startX ], worksheet.Cells[ endY, endX ] ];
+            object?[,] werte = RangeValues( bereich );
 
             double[,] locDoubleArray = new double[ endX - startX + 1, endY - startY + 1 ];
 
             // a dream would be the next line, but it is not save for input
             // valuesDoubleArray = worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 as double[,];
 
-            for ( int rowInd = startRow; rowInd <= endRow; rowInd++ )
+            for ( int rowInd = 1; rowInd <= werte.GetLength( 0 ); rowInd++ )
             {
-                double temp = 0;
-                for ( int colInd = startCol; colInd <= endCol; colInd++ )
+                for ( int colInd = 1; colInd <= werte.GetLength( 1 ); colInd++ )
                 {
-                    string colName = GetColumnFromNumber(colInd);
-                    // beware: the cell index works like this coming line
-                    temp =
-                        worksheet.Cells[ rowInd, colName ]
-                            ?? 0.0;
-
-                    locDoubleArray[ colInd - startX, rowInd - startY ] = temp;
+                    // jeder Wert einzeln geprüft; Excel zählt ab 1, das Array ab 0
+                    locDoubleArray[ colInd - 1, rowInd - 1 ] = CellNumber( werte[ rowInd, colInd ] );
 
                 }   // end: for ( int colInd
 
@@ -812,13 +1156,25 @@ namespace DbaseFrame
 
         /// <summary>
         /// Writes the 2d-array to the active sheet at the specified coordinates.
-        /// Overwrites anything in its way.
+        /// Overwrites anything in its way. Koordinaten im Blatt ab 1, X = Spalte, Y = Zeile.
         /// </summary>
+        /// <exception cref="ArgumentException">Koordinate unter 1</exception>
         public void WriteDoubles( double[,] dataArray, int startX, int startY )
         {
+            // Koordinaten prüfen: Excel zählt ab 1
+            if ( ( startX < 1 ) || ( startY < 1 ) )
+                throw new ArgumentException( "ExcelInterop.WriteDoubles: Koordinaten ab 1" );
+            // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            CheckFinite( dataArray, "WriteDoubles" );
+
+            // das gewählte Blatt ( 27.11.26: vorher nicht gesetzt, ohne vorheriges Lesen NullReferenceException )
+            worksheet = SelectedSheet( );
+
             // calculate the Excel range to write to
             int colCount = dataArray.GetLength( 0 );
             int rowCount = dataArray.GetLength( 1 );
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
             int startCol = startX;
             int endCol = startCol + colCount - 1;
@@ -831,27 +1187,32 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = dataArray;
+            // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( dataArray );
 
         } // end: WriteDoubles
 
         /// <summary>
         /// Appends the 2d-array to the active sheet after the last row.
+        /// Unter dem Datenrechteck, ab dessen erster Spalte; auf einem leeren Blatt ab A1.
         /// </summary>
-        /// <param name="dataArray">2d double array</param>
-        public void AppendRowDoublesMatrix(double[,] dataArray )
+        /// <param name="dataArray">2d double array, Matrix( x, y )</param>
+        public void AppendRowDoublesMatrix(double[,] dataArray)
         {
-            // Find last used row
-            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
-            int lastRow = lastCell.Row;
+            // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            CheckFinite( dataArray, "AppendRowDoublesMatrix" );
+
+            // erste freie Zeile unter dem Datenrechteck ( 27.11.26: vorher SpecialCells( xlCellTypeLastCell ),
+            // das merkt sich die frühere letzte Zeile auch nach dem Löschen )
+            NextFreeRow( out int startRow, out int startCol );
 
             // calculate the Excel range to write to
             int colCount = dataArray.GetLength(0);
             int rowCount = dataArray.GetLength(1);
+            if ( ( colCount == 0 ) || ( rowCount == 0 ) )
+                return;   // nichts zu schreiben
 
-            int startCol = 1;
             int endCol = startCol + colCount - 1;
-            int startRow = lastRow + 1;
             int endRow = startRow + rowCount - 1;
 
             // die Strings
@@ -860,46 +1221,55 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
             string yDim2 = endRow.ToString();
 
-            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+            // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = ToExcelOrder( dataArray );
 
         } // end: AppendRowDoublesMatrix
 
         /// <summary>
         /// Writes the array to the active sheet after the last row.
+        /// Unter dem Datenrechteck, ab dessen erster Spalte; auf einem leeren Blatt ab A1.
         /// </summary>
-        /// <param name="dataArray">double array</param>
-        public void AppendRowDoublesField(double[] dataArray )
+        /// <param name="dataArray">double array ( eine Zeile )</param>
+        public void AppendRowDoublesField(double[] dataArray)
         {
-            // Find last used row
-            Excel.Range lastCell = worksheet.Cells.SpecialCells(Excel.XlCellType.xlCellTypeLastCell);
-            int lastRow = lastCell.Row;
+            // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            CheckFinite( dataArray, "AppendRowDoublesField" );
+
+            // erste freie Zeile unter dem Datenrechteck ( 27.11.26: vorher SpecialCells( xlCellTypeLastCell ),
+            // das merkt sich die frühere letzte Zeile auch nach dem Löschen )
+            NextFreeRow( out int startRow, out int startCol );
 
             // calculate the Excel range to write to
             int colCount = dataArray.Length;
-            int rowCount = 1;
+            if ( colCount == 0 )
+                return;   // nichts zu schreiben
 
-            int startCol = 1;
             int endCol = startCol + colCount - 1;
-            int startRow = lastRow + 1;
-            int endRow = startRow + rowCount - 1;
 
             // die Strings
             string xDim1 = GetColumnFromNumber(startCol);
             string xDim2 = GetColumnFromNumber(endCol);
             string yDim1 = startRow.ToString();
-            string yDim2 = endRow.ToString();
 
-            worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = dataArray;
+            // ein eindimensionales Feld schreibt Excel als eine Zeile ( keine Umsetzung nötig )
+            worksheet.Range[xDim1 + yDim1, xDim2 + yDim1].Value2 = dataArray;
 
         } // end: AppendRowDoublesField
 
         /// <summary>
         /// Intern 2d-array of doubles will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
+        /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
+        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur nach Rückfrage ersetzt.
         /// </summary>
-        /// <param name="newFileTarget"></param>
-        public void WriteDoublesToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
+        public void WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
         {
+            // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            CheckFinite( valuesDoubleArray, "WriteDoublesToNewTarget" );
+
             bool overwrite = false;
             while ( !overwrite )
             {
@@ -907,6 +1277,8 @@ namespace DbaseFrame
                     ChooseTarget( ref newFileTarget, false );
                 else
                     ChooseTarget( ref newFileTarget, true );
+                // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
+                newFileTarget = CompleteTargetName( newFileTarget );
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -921,36 +1293,57 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
+
+            /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
+             *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;
+             *    die Zieldatei entstand nicht, die neue Mappe blieb ungespeichert offen ( Excel hing beim Beenden )
+            */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
-            newWorkbook.Worksheets[ 1 ].Name = newTableName;
+            try
+            {   // neue Mappe füllen und speichern
+                Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
+                if ( !string.IsNullOrWhiteSpace( newTableName ) )
+                    newSheet.Name = newTableName;
 
+                // calculate the Excel range to write to
+                int colCount = valuesDoubleArray.GetLength( 0 );
+                int rowCount = valuesDoubleArray.GetLength( 1 );
 
-            // calculate the Excel range to write to
-            int colCount = valuesDoubleArray.GetLength( 0 );
-            int rowCount = valuesDoubleArray.GetLength( 1 );
+                if ( ( colCount > 0 ) && ( rowCount > 0 ) )
+                {   // nur bei Daten schreiben
+                    int startCol = 1;
+                    int endCol = startCol + colCount - 1;
+                    int startRow = 1;
+                    int endRow = startRow + rowCount - 1;
 
-            int startCol = 1;
-            int endCol = startCol + colCount - 1;
-            int startRow = 1;
-            int endRow = startRow + rowCount - 1;
+                    // die Strings
+                    string xDim1 = GetColumnFromNumber( startCol );
+                    string xDim2 = GetColumnFromNumber( endCol );
+                    string yDim1 = startRow.ToString();
+                    string yDim2 = endRow.ToString();
 
-            // die Strings
-            string xDim1 = GetColumnFromNumber( startCol );
-            string xDim2 = GetColumnFromNumber( endCol );
-            string yDim1 = startRow.ToString();
-            string yDim2 = endRow.ToString();
+                    // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+                    newSheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesDoubleArray );
+                }   // ende: nur bei Daten schreiben
 
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesDoubleArray;
-
-            SaveWorkbook();
+                newWorkbook.SaveAs( newFileTarget );
+            }   // Ende: neue Mappe füllen und speichern
+            finally
+            {   // neue Mappe schließen ( gespeichert ist sie schon ), die geöffnete wird wieder aktiv
+                newWorkbook.Close( SaveChanges: false );
+                Marshal.ReleaseComObject( newWorkbook );
+            }   // Ende: neue Mappe schließen
 
         }   // end: WriteDoublesToNewTarget
 
         /// <summary>
         /// Intern data list string will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
+        /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
+        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur nach Rückfrage ersetzt.
         /// </summary>
-        /// <param name="newFileTarget"></param>
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
         public void WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
             bool overwrite = false;
@@ -960,6 +1353,8 @@ namespace DbaseFrame
                     ChooseTarget( ref newFileTarget, false );
                 else
                     ChooseTarget( ref newFileTarget, true );
+                // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
+                newFileTarget = CompleteTargetName( newFileTarget );
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -974,28 +1369,46 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
+
+            /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
+             *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;
+             *    die Zieldatei entstand nicht, die neue Mappe blieb ungespeichert offen ( Excel hing beim Beenden )
+            */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
-            newWorkbook.Worksheets[ 1 ].Name = newTableName;
+            try
+            {   // neue Mappe füllen und speichern
+                Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
+                if ( !string.IsNullOrWhiteSpace( newTableName ) )
+                    newSheet.Name = newTableName;
 
+                // calculate the Excel range to write to
+                int colCount = valuesStringArray.GetLength( 0 );
+                int rowCount = valuesStringArray.GetLength( 1 );
 
-            // calculate the Excel range to write to
-            int colCount = valuesStringArray.GetLength( 0 );
-            int rowCount = valuesStringArray.GetLength( 1 );
+                if ( ( colCount > 0 ) && ( rowCount > 0 ) )
+                {   // nur bei Daten schreiben
+                    int startCol = 1;
+                    int endCol = startCol + colCount - 1;
+                    int startRow = 1;
+                    int endRow = startRow + rowCount - 1;
 
-            int startCol = 1;
-            int endCol = startCol + colCount - 1;
-            int startRow = 1;
-            int endRow = startRow + rowCount - 1;
+                    // die Strings
+                    string xDim1 = GetColumnFromNumber( startCol );
+                    string xDim2 = GetColumnFromNumber( endCol );
+                    string yDim1 = startRow.ToString();
+                    string yDim2 = endRow.ToString();
 
-            // die Strings
-            string xDim1 = GetColumnFromNumber( startCol );
-            string xDim2 = GetColumnFromNumber( endCol );
-            string yDim1 = startRow.ToString();
-            string yDim2 = endRow.ToString();
+                    // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+                    newSheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesStringArray );
+                }   // ende: nur bei Daten schreiben
 
-            worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = valuesStringArray;
-
-            SaveWorkbook();
+                newWorkbook.SaveAs( newFileTarget );
+            }   // Ende: neue Mappe füllen und speichern
+            finally
+            {   // neue Mappe schließen ( gespeichert ist sie schon ), die geöffnete wird wieder aktiv
+                newWorkbook.Close( SaveChanges: false );
+                Marshal.ReleaseComObject( newWorkbook );
+            }   // Ende: neue Mappe schließen
 
         }   // end: WriteStringsToNewTarget
 

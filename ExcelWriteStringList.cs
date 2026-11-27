@@ -38,9 +38,11 @@ namespace DbaseFrame
                     "C:\\" +
                     "Write_Excel_Demo.xlsx" +
                     ";Extended Properties=\"Excel 12.0 Xml;HDR=NO;\"";
+            /*
             string createTable = "CREATE TABLE table_name(" +
                 "column1 data_type,column2 data_type, " +
                 ")CONSTRAINT constraint_name[ PRIMARY KEY | UNIQUE | FOREIGN KEY ]);";
+            */
 
             using ( OleDbConnection conn = new OleDbConnection( connectionString ) )
             {
@@ -53,7 +55,7 @@ namespace DbaseFrame
                 {
                     string[] temp = new string[ reader.FieldCount ];
                     for ( int pos = 0; pos < reader.FieldCount; pos++ )
-                        temp[ pos ] = reader[ pos ].ToString( );
+                        temp[ pos ] = reader[ pos ].ToString( ) ?? "";
                     values.Add( temp );
 
                 }

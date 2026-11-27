@@ -34,8 +34,8 @@ namespace DbaseFrame
         /// </summary>
         Version version = new Version( "1.0.5" );
 
-        ExcelOleDb dbfExcel;
-        AccessOleDb dbfAccess;
+        ExcelOleDb dbfExcel = null!;
+        AccessOleDb dbfAccess = null!;
 
         /// <summary>
         /// standard constructor
