@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -19,8 +19,9 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <!-- Paketnummer: die einzige Stelle ( 27.11.26 ). AssemblyVersion und FileVersion folgen ihr automatisch,
          im Code liefert sie PackageInfo.Version. Gepflegt wie die Klassennummern: bei Änderungen erhöhen,
-         höchstens einmal am Tag ( Paketnummer ab 1.0.7 ). -->
-    <Version>1.0.7</Version>
+         höchstens einmal am Tag ( Paketnummer ab 1.0.7; eine schon veröffentlichte Nummer
+         braucht für Änderungen eine neue, auch am selben Tag ). -->
+    <Version>1.0.8</Version>
     <AssemblyTitle>DbaseFrame</AssemblyTitle>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
