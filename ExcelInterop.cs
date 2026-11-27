@@ -59,7 +59,8 @@ namespace DbaseFrame
         ///           ReadDoubles leert 'valuesDoubleArray' zu Beginn und weist es erst nach dem Lesen zu ( nach einem
         ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException;
         ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings );
-        ///           'headers' ebenso: zu Beginn leer, nur nach fehlerfreiem Lesen gesetzt ( ReadHeaders liefert zurück )
+        ///           'headers' ebenso: zu Beginn leer, nur nach fehlerfreiem Lesen gesetzt ( ReadHeaders liefert zurück );
+        ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -1468,7 +1469,8 @@ namespace DbaseFrame
                 {   // nur bei Daten schreiben
                     int startCol = 1;
                     int endCol = startCol + colCount - 1;
-                    int startRow = 1;
+                    // bei useHeader zuerst die gelesene Kopfzeile, die Daten darunter ( 27.11.26 )
+                    int startRow = WriteHeaderRow( newSheet, colCount );
                     int endRow = startRow + rowCount - 1;
 
                     // die Strings
@@ -1548,7 +1550,8 @@ namespace DbaseFrame
                 {   // nur bei Daten schreiben
                     int startCol = 1;
                     int endCol = startCol + colCount - 1;
-                    int startRow = 1;
+                    // bei useHeader zuerst die gelesene Kopfzeile, die Daten darunter ( 27.11.26 )
+                    int startRow = WriteHeaderRow( newSheet, colCount );
                     int endRow = startRow + rowCount - 1;
 
                     // die Strings
@@ -1571,6 +1574,23 @@ namespace DbaseFrame
             return ( true );
 
         }   // end: WriteStringsToNewTarget
+
+        /// <summary>
+        /// Schreibt bei useHeader die gelesene Kopfzeile ( 'headers' ) in Zeile 1 eines neuen Blatts, damit sie in der
+        /// neuen Datei erhalten bleibt ( 27.11.26; ohne useHeader enthält 'headers' nur Spaltenbuchstaben ).
+        /// </summary>
+        /// <param name="sheet">das neue Blatt</param>
+        /// <param name="colCount">Spaltenzahl der Daten</param>
+        /// <returns>erste Zeile für die Daten: 2 mit Kopfzeile, sonst 1</returns>
+        int WriteHeaderRow( Excel.Worksheet sheet, int colCount )
+        {
+            if ( !useHeader || ( colCount == 0 ) || ( headers.Length != colCount ) )
+                return ( 1 );
+            // ein eindimensionales Feld schreibt Excel als eine Zeile ( wie AppendRowStringField )
+            sheet.Range[ "A1", GetColumnFromNumber( colCount ) + "1" ].Value2 = headers;
+            return ( 2 );
+
+        }   // Ende: int WriteHeaderRow
 
     }   // end: ExcelInterop
 

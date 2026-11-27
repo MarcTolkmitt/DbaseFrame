@@ -44,7 +44,9 @@ namespace DbaseFrame
         ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben );
         ///           Dateidialog abgebrochen → keine Datei ( 'lastError', wie ExcelInterop ), vorher stillschweigend
         ///           Parable_Demo.xlsx aus dem Arbeitsordner; WriteListDoubleToNewTarget ohne die zwei MessageBoxen
-        ///           mit dem SQL-Text ( Testausgabe, wie schon in WriteListStringToNewTarget )
+        ///           mit dem SQL-Text ( Testausgabe, wie schon in WriteListStringToNewTarget );
+        ///           Write…ToNewTarget liefern bool ( geschrieben / nichts geschrieben ); neues Feld 'headers'
+        ///           ( Spaltennamen beim Lesen ), bei useHeader Spaltennamen der neuen Tabelle ( vorher 0, 1, 2, ... )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -69,6 +71,13 @@ namespace DbaseFrame
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
         public List<string[]> valuesTypes = new List<string[]>();
+
+        /// <summary>
+        /// Spaltennamen der zuletzt gelesenen Tabelle ( wie ExcelInterop.headers ): bei useHeader die Kopfzeile,
+        /// sonst die Namen des Treibers ( F1, F2, ... ). Nur nach fehlerfreiem Lesen gesetzt, sonst leer.
+        /// Die Schreibfunktionen nehmen sie bei useHeader als Spaltennamen der neuen Tabelle ( 27.11.26 ).
+        /// </summary>
+        public string[] headers = new string[ 0 ];
         public string[] sheets = new string[1];
         public int sheetNumber = -1;
 
@@ -276,11 +285,13 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
+            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand  command = new OleDbCommand ( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                
+                string[] locHeaders = ColumnNames( reader );
+
                 valuesTypes = new List<string[]>();
 
                 while ( reader.Read() )
@@ -296,6 +307,7 @@ namespace DbaseFrame
                 }
                 reader.Close();
                 conn.Close();
+                headers = locHeaders;
 
             }   // end: using
 
@@ -309,11 +321,13 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
+            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                
+                string[] locHeaders = ColumnNames( reader );
+
                 valuesString = new List<string[]>();
 
                 while ( reader.Read() )
@@ -326,7 +340,8 @@ namespace DbaseFrame
                     valuesString.Add( temp );
 
                 }
-                
+                headers = locHeaders;
+
             }   // end: using
 
         }   // end: ReadStringList
@@ -339,11 +354,13 @@ namespace DbaseFrame
         /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
+            headers = new string[ 0 ];   // nur nach fehlerfreiem Lesen gesetzt ( wie ExcelInterop )
             using ( OleDbConnection conn = OpenSource( ) )
             {
                 OleDbCommand command = new OleDbCommand($"SELECT * FROM [{SelectedTable( )}]", conn);
                 OleDbDataReader reader = command.ExecuteReader();
-                
+                string[] locHeaders = ColumnNames( reader );
+
                 valuesDouble = new List<double[]>();
 
                 while ( reader.Read() )
@@ -355,10 +372,81 @@ namespace DbaseFrame
                     valuesDouble.Add( temp );
 
                 }
+                headers = locHeaders;
 
             }   // end: using
 
         }   // end: ReadDoubleList
+
+        /// <summary>
+        /// Spaltennamen des Lesers ( bei HDR=YES die Kopfzeile, sonst F1, F2, ... des Treibers ).
+        /// </summary>
+        /// <param name="reader">geöffneter Leser</param>
+        /// <returns>je Spalte ein Name</returns>
+        static string[] ColumnNames( OleDbDataReader reader )
+        {
+            string[] namen = new string[ reader.FieldCount ];
+            for ( int pos = 0; pos < reader.FieldCount; pos++ )
+                namen[ pos ] = reader.GetName( pos ) ?? string.Empty;
+            return ( namen );
+
+        }   // Ende: string[] ColumnNames
+
+        /// <summary>
+        /// Spaltennamen für eine neue Tabelle: bei useHeader und passender Spaltenzahl die gelesenen 'headers'
+        /// ( Kopfzeile bleibt erhalten, 27.11.26 ), sonst wie bisher 0, 1, 2, ...
+        /// Für ACE bereinigt: . ! [ ] ` werden _, leer → Spaltennummer, doppelt → Anhang _2, _3, ...
+        /// </summary>
+        /// <param name="columns">Spaltenzahl der Daten</param>
+        /// <returns>je Spalte ein eindeutiger Name</returns>
+        string[] ColumnNamesForWrite( int columns )
+        {
+            bool kopf = useHeader && ( headers.Length == columns );
+            string[] namen = new string[ columns ];
+            HashSet<string> vergeben = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+            for ( int pos = 0; pos < columns; pos++ )
+            {   // je Spalte
+                string name = kopf ? headers[ pos ] : pos.ToString( );
+                foreach ( char zeichen in ".![]`" )
+                    name = name.Replace( zeichen, '_' );
+                name = name.Trim( );
+                if ( name.Length > 64 )
+                    name = name.Substring( 0, 64 );
+                if ( name == "" )
+                    name = pos.ToString( );
+                string basis = name;
+                for ( int anhang = 2; !vergeben.Add( name ); anhang++ )
+                    name = basis + "_" + anhang;
+                namen[ pos ] = name;
+            }   // Ende: je Spalte
+            return ( namen );
+
+        }   // Ende: string[] ColumnNamesForWrite
+
+        /// <summary>
+        /// Baut CREATE TABLE und INSERT INTO für eine neue Tabelle mit den Spaltennamen aus ColumnNamesForWrite.
+        /// </summary>
+        /// <param name="tabelle">Tabellenname</param>
+        /// <param name="columns">Spaltenzahl</param>
+        /// <param name="typ">SQL-Typ der Spalten ( DOUBLE, VARCHAR )</param>
+        /// <param name="commandInsert">INSERT INTO mit Parametern @0, @1, ...</param>
+        /// <returns>CREATE TABLE</returns>
+        string TableCommands( string tabelle, int columns, string typ, out string commandInsert )
+        {
+            string[] namen = ColumnNamesForWrite( columns );
+            List<string> definitionen = new List<string>( );
+            List<string> spalten = new List<string>( );
+            List<string> parameter = new List<string>( );
+            for ( int pos = 0; pos < columns; pos++ )
+            {   // je Spalte
+                definitionen.Add( $"[{namen[ pos ]}] {typ}" );
+                spalten.Add( $"[{namen[ pos ]}]" );
+                parameter.Add( $"@{pos}" );
+            }   // Ende: je Spalte
+            commandInsert = $"INSERT INTO [{tabelle}] ( {string.Join( ", ", spalten )} ) VALUES ( {string.Join( ", ", parameter )} );";
+            return ( $"CREATE TABLE [{tabelle}] ( {string.Join( ", ", definitionen )} );" );
+
+        }   // Ende: string TableCommands
 
         /// <summary>
         /// Returns the number of a chosen table. A dialog will open to let you choose from
@@ -465,12 +553,14 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
+        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben
+        /// ( 27.11.26, wie ExcelInterop )</returns>
+        public bool WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
         {
-            if ( valuesDouble.Count < 1 )
+            if ( ( valuesDouble.Count < 1 ) || ( valuesDouble[ 0 ].Length == 0 ) )
             {   // no data to write
                 Message.Show( "No data to write, abort!" );
-                return;
+                return ( false );
             }
 
             bool overwrite = false;
@@ -478,7 +568,7 @@ namespace DbaseFrame
             {
                 // ohne Namen per Dialog; abgebrochen: nichts schreiben
                 if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return;
+                    return ( false );
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -493,42 +583,10 @@ namespace DbaseFrame
                     newFileTarget = "";
 
             }
-            // craft the 'CREATE TABLE' and 'INSERT INTO'
+            // craft the 'CREATE TABLE' and 'INSERT INTO'; Spaltennamen bei useHeader aus der gelesenen
+            // Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesDouble[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} DOUBLE ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} DOUBLE, ";
-                    tableCreateColumns += $"{1} DOUBLE ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} DOUBLE, ";
-                    tableCreateColumns += $"{( columns - 1 )} DOUBLE );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
-
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] " 
-                    + tableCreateColumns;
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
+            string commandCreate = TableCommands( newTableName, columns, "DOUBLE", out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
@@ -551,8 +609,9 @@ namespace DbaseFrame
                 }
 
                 connection.Close();
-                
+
             }
+            return ( true );
 
         }   // end: WriteListDoubleToNewTarget
 
@@ -561,12 +620,14 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// </summary>
         /// <param name="newFileTarget"></param>
-        public void WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben
+        /// ( 27.11.26, wie ExcelInterop )</returns>
+        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
         {
-            if ( valuesString.Count < 1 )
+            if ( ( valuesString.Count < 1 ) || ( valuesString[ 0 ].Length == 0 ) )
             {   // no data to write
                 Message.Show( "No data to write, abort!" );
-                return;
+                return ( false );
             }
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
             // die Zieldatei blieb mit leerer Tabelle zurück )
@@ -577,7 +638,7 @@ namespace DbaseFrame
             {
                 // ohne Namen per Dialog; abgebrochen: nichts schreiben
                 if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return;
+                    return ( false );
 
                 if ( File.Exists( newFileTarget ) )
                 {
@@ -593,44 +654,10 @@ namespace DbaseFrame
 
             }
             // craft the 'CREATE TABLE' and 'INSERT INTO'
-            // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen )
+            // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen );
+            // Spaltennamen bei useHeader aus der gelesenen Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesString[0].Length;
-            string tableCreateColumns = "( ";
-            string tableInsertColumns = "( ";
-            switch ( columns )
-            {
-                case 0:
-                    // no data to write
-                    Message.Show( "No data to write, abort!" );
-                    return;
-                case 1:
-                    tableCreateColumns += $"{0} VARCHAR ) ";
-                    tableInsertColumns += $"{0} ) VALUES ( @0 ); ";
-                    break;
-                case 2:
-                    tableCreateColumns += $"{0} VARCHAR, ";
-                    tableCreateColumns += $"{1} VARCHAR ) ";
-                    tableInsertColumns += $"{0}, {1} ) VALUES ( @0, @1 ); ";
-                    break;
-                default:
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableCreateColumns += $"{i} VARCHAR, ";
-                    tableCreateColumns += $"{( columns - 1 )} VARCHAR );";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"{i}, ";
-                    tableInsertColumns += $"{( columns - 1 )} ) VALUES ( ";
-                    for ( int i = 0; i < ( columns - 1 ); i++ )
-                        tableInsertColumns += $"@{i}, ";
-                    tableInsertColumns += $"@{( columns - 1 )} );";
-                    break;
-
-            }
-            string commandCreate = $"CREATE TABLE [{newTableName}] "
-                    + tableCreateColumns;
-            //Message.Show( commandCreate );
-            string commandInsert = $"INSERT INTO [{newTableName}] "
-                    + tableInsertColumns;
-            //Message.Show( commandInsert );
+            string commandCreate = TableCommands( newTableName, columns, "VARCHAR", out string commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
@@ -654,6 +681,7 @@ namespace DbaseFrame
 
                 connection.Close();
             }
+            return ( true );
 
         }   // end: WriteListStringToNewTarget
 

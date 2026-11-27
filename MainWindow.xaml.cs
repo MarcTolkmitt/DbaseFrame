@@ -35,7 +35,8 @@ namespace DbaseFrame
         ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen;
         ///           beim Start Paketnummer ( PackageInfo ) und Version des Beispielprogramms anzeigen;
         ///           OleDb-Menüpunkte über ExcelDo / AccessDo: ohne geöffnete Datei ein Hinweis
-        ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad )
+        ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad );
+        ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben )
         /// </summary>
         Version version = new Version( "1.0.6" );
 
@@ -402,7 +403,9 @@ namespace DbaseFrame
         {
             ExcelDo( x =>
             {
-                x.WriteListDoubleToNewTarget();
+                Display( x.WriteListDoubleToNewTarget( )
+                    ? "OleDb Excel: Zahlen in eine neue Datei geschrieben"
+                    : "OleDb Excel: nichts geschrieben ( keine Daten oder abgebrochen )" );
             } );
 
         }   // end: _mItemWriteListDoubleToExcel_Click
@@ -416,7 +419,9 @@ namespace DbaseFrame
         {
             ExcelDo( x =>
             {
-                x.WriteListStringToNewTarget();
+                Display( x.WriteListStringToNewTarget( )
+                    ? "OleDb Excel: Texte in eine neue Datei geschrieben"
+                    : "OleDb Excel: nichts geschrieben ( keine Daten oder abgebrochen )" );
             } );
 
         }   // end: _mItemWriteListStringToExcel_Click
