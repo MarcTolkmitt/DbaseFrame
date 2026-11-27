@@ -43,7 +43,8 @@ namespace DbaseFrame
         ///           WriteListStringToNewTarget zählt die Spalten der Texte ( vorher der Zahlen ) und prüft vorher die
         ///           Textlänge ( höchstens 255 Zeichen, sonst Fehlermeldung, nichts geschrieben );
         ///           Dateidialog abgebrochen → keine Datei ( 'lastError', wie ExcelInterop ), vorher stillschweigend
-        ///           Parable_Demo.xlsx aus dem Arbeitsordner
+        ///           Parable_Demo.xlsx aus dem Arbeitsordner; WriteListDoubleToNewTarget ohne die zwei MessageBoxen
+        ///           mit dem SQL-Text ( Testausgabe, wie schon in WriteListStringToNewTarget )
         /// </summary>
         Version version = new Version( "1.0.14" );
 
@@ -526,10 +527,8 @@ namespace DbaseFrame
             }
             string commandCreate = $"CREATE TABLE [{newTableName}] " 
                     + tableCreateColumns;
-            Message.Show( commandCreate );
             string commandInsert = $"INSERT INTO [{newTableName}] "
                     + tableInsertColumns;
-            Message.Show( commandInsert );
             using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
             {
                 connection.Open();
