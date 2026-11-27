@@ -58,7 +58,8 @@ namespace DbaseFrame
         ///           ReadDoubles: Text statt Zahl → InvalidDataException mit Zelladresse ( vorher still 0 );
         ///           ReadDoubles leert 'valuesDoubleArray' zu Beginn und weist es erst nach dem Lesen zu ( nach einem
         ///           Fehler keine halben oder alten Zahlen ); Schreiben ohne Zahlen → InvalidOperationException;
-        ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings )
+        ///           ReadStrings und ReadTypes ebenso, Schreiben ohne Texte → InvalidOperationException ( CheckStrings );
+        ///           'headers' ebenso: zu Beginn leer, nur nach fehlerfreiem Lesen gesetzt ( ReadHeaders liefert zurück )
         /// </summary>
         Version version = new Version( "1.0.8" );
 
@@ -659,8 +660,9 @@ namespace DbaseFrame
         {
             // zuerst leeren, lokal füllen, am Ende zuweisen ( wie ReadDoubles, 27.11.26 ): Scheitert das Lesen
             // ( z. B. leeres Blatt ), bleiben keine Texte eines früher gelesenen Blatts stehen; die
-            // Schreibfunktionen melden dann "keine Texte vorhanden" ( CheckStrings )
+            // Schreibfunktionen melden dann "keine Texte vorhanden" ( CheckStrings ); die Kopfzeile ebenso
             valuesStringArray = null!;
+            headers = new string[ 0 ];
 
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
             object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
@@ -673,7 +675,7 @@ namespace DbaseFrame
              *  - useHeader: erste Zeile des Datenrechtecks nach 'headers', die Daten beginnen in der zweiten
              *  - sonst: alle Zeilen sind Daten, 'headers' enthält die Spaltennamen des Blatts ( z. B. B, C, ... )
             */
-            ReadHeaders( werte, firstCol );
+            string[] locHeaders = ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
 
             string[,] locStringArray = new string[ colCount, Math.Max( 0, rowCount - startRow + 1 ) ];
@@ -690,28 +692,32 @@ namespace DbaseFrame
             }   // end: for ( int rowInd
 
             valuesStringArray = locStringArray;
+            headers = locHeaders;
 
         }   // end: ReadStrings
 
         /// <summary>
-        /// Füllt 'headers': bei useHeader die Texte der ersten Zeile des Datenrechtecks,
+        /// Liefert die Kopfzeile für 'headers': bei useHeader die Texte der ersten Zeile des Datenrechtecks,
         /// sonst die Spaltennamen des Blatts ( das Rechteck kann z. B. in Spalte B beginnen ).
+        /// Setzt 'headers' nicht selbst: der Aufrufer weist es erst nach fehlerfreiem Lesen zu ( 27.11.26 ).
         /// </summary>
         /// <param name="werte">Werte des Datenrechtecks [ zeile, spalte ], ab 1</param>
         /// <param name="firstCol">erste Spalte des Rechtecks im Blatt ( ab 1 )</param>
-        void ReadHeaders( object?[,] werte, int firstCol )
+        /// <returns>je Spalte ein Name</returns>
+        string[] ReadHeaders( object?[,] werte, int firstCol )
         {
             int colCount = werte.GetLength( 1 );
-            headers = new string[ colCount ];
+            string[] locHeaders = new string[ colCount ];
             for ( int colInd = 1; colInd <= colCount; colInd++ )
             {   // je Spalte
                 if ( useHeader )
-                    headers[ colInd - 1 ] = CellText( werte[ 1, colInd ] );
+                    locHeaders[ colInd - 1 ] = CellText( werte[ 1, colInd ] );
                 else
-                    headers[ colInd - 1 ] = GetColumnFromNumber( firstCol + colInd - 1 );
+                    locHeaders[ colInd - 1 ] = GetColumnFromNumber( firstCol + colInd - 1 );
             }   // Ende: je Spalte
+            return ( locHeaders );
 
-        }   // Ende: void ReadHeaders
+        }   // Ende: string[] ReadHeaders
 
         /// <summary>
         /// Holt die Werte des Datenrechtecks ( benutzter Bereich des aktiven Blatts ) mit einem Zugriff.
@@ -1180,8 +1186,9 @@ namespace DbaseFrame
         {
             // zuerst leeren ( Vorgabe vom 27.11.26 ): Scheitert dieses Lesen, bleiben keine Zahlen eines früher
             // gelesenen Blatts stehen, die sich ohne Hinweis speichern ließen; die Schreibfunktionen melden dann
-            // "keine Zahlen vorhanden" ( CheckFinite )
+            // "keine Zahlen vorhanden" ( CheckFinite ); die Kopfzeile ebenso
             valuesDoubleArray = null!;
+            headers = new string[ 0 ];
 
             // alle Werte des Datenrechtecks mit einem Zugriff ( Abschnitt "Lesen" )
             object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
@@ -1191,7 +1198,7 @@ namespace DbaseFrame
             int colCount = werte.GetLength( 1 );
 
             // Kopfzeile wie in ReadStrings ( useHeader: erste Zeile nach 'headers', Daten ab der zweiten )
-            ReadHeaders( werte, firstCol );
+            string[] locHeaders = ReadHeaders( werte, firstCol );
             int startRow = useHeader ? 2 : 1;
 
             // erst lokal füllen, erst am Ende zuweisen ( wie ReadDoubles für einen Bereich ): Bricht das Lesen
@@ -1216,6 +1223,7 @@ namespace DbaseFrame
             }   // end: for ( int rowInd
 
             valuesDoubleArray = locDoubleArray;
+            headers = locHeaders;
 
         }   // end: ReadDoubles
 
