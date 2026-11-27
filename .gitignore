@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude Code: lokale Einstellungen und MCP-Konfiguration ( nicht versionieren, 27.11.26 )
+.claude/
+.mcp.json
