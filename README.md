@@ -180,7 +180,11 @@ The try/catch-block is needed at the beginning when opening the file ( **update 
 ```c#
             ExcelInterop excel = new ExcelInterop( "", false, doUseHeader: true, doReadOnly: true );
             if ( !excel.workbookOpen )
+            {   // not opened ( dialog cancelled, missing, locked ... ): stop here ( update 28.11.2026 )
                 Console.WriteLine( "not opened: " + excel.lastError );
+                excel.ExcelInteropQuit( );
+                return;
+            }
 ```
 
 Like before you can read the contents of the excel file as type-, string- or double into the classes internal fields but this time i use 2d arrays. For the safety every cell needs to be checked if the type is the correct one. **Update 27.11.2026:** all values of the data rectangle are fetched with **one** access ( 2000 x 5 cells: 110 ms instead of 23 s cell by cell ) and checked afterwards one by one. The arrays are **Matrix( x, y ) = point( x, y )**: first index column, second index row; Excel's own order [ row, column ] is only used at the hand-over.
@@ -190,6 +194,7 @@ Like before you can read the contents of the excel file as type-, string- or dou
             excel.ReadDoubles( );            // text instead of a number -> error message with cell address
             double[,] data = excel.valuesDoubleArray;   // data[ x, y ]
             string[] names = excel.headers;              // the header row ( with doUseHeader )
+            excel.ExcelInteropQuit( );       // always at the end, otherwise Excel keeps running ( update 28.11.2026 )
 ```
 
 In writing the data to an excel workbook the strength of the interop classes can be seen: one assignment of 'Value2' for the whole range. **Update 27.11.2026:** 'WriteDoublesToNewTarget' / 'WriteStringsToNewTarget' really create and save the new file ( with the header row, if read with headers ), return false if the dialog is cancelled, and Excel is ended completely by 'ExcelInteropQuit( )' ( every COM object is released, otherwise Excel keeps running ).
@@ -225,7 +230,13 @@ In writing the data to an excel workbook the strength of the interop classes can
 
 **Update 28.11.2026 ( 'ExcelInteropQuit' saves only own changes ):** before, 'ExcelInteropQuit( )' closed every workbook that was not opened read only with 'SaveChanges: true'. Excel then writes the file whenever it marks the workbook as changed – also after a recalculation, without any write by the program ( measured: a workbook with =NOW( ) is written after a calculation ). Now the workbook is saved on closing only if the class itself changed it since opening or the last 'SaveWorkbook' / 'SaveWorkbookAs' ( 'WriteStrings', 'WriteDoubles', 'AppendRow…', 'CleanSheet', 'SetSheetName', 'NewSheet' ). Reading alone never saves. Opened read only, nothing is saved, as before. All public members now have XML documentation ( IntelliSense ).
 
-### <u>14.Donations</u>
+**Update 28.11.2026 ( package 1.0.9: core for older environments, log functions ):** the package now contains two builds: `net10.0-windows7.0` ( as before, with the demo program and the file dialogs ) and **`netstandard2.0`**, a core without user interface for older environments ( e.g. cTrader with .NET 6 ). In the `netstandard2.0` build the file dialogs and the table dialog are not available: `DialogFileNameLoad` / `DialogFileNameSave` return false, `ReadTableNames` / `ReadSheetNames` return -1; pass file names and table numbers directly. Only `ExcelInterop` is tested there ( OleDb is not usable on .NET 6 ).
+
+New in `ExcelInterop` for log files: `OpenOrCreateWorkbook( firstSheetName )` opens the workbook for writing or creates it, `SelectOrCreateSheet( name, header )` selects or creates one sheet per routine ( a new or empty sheet gets the header row ), `InsertRowTop( values )` inserts the newest row directly below the header: `DateTime` values become Excel dates ( dd.mm.yy hh:mm:ss ), texts stay texts ( a text like "=NOW()" is not executed as a formula ). The workbook may stay open for many entries; save with `SaveWorkbook( )` and call `ExcelInteropQuit( )` at the end.
+
+Changed: `GetTableName` / `GetSheetName` throw an `ArgumentOutOfRangeException` for a number that does not exist ( before: empty text ); use the new `GetTableCount( )` / `GetSheetCount( )`. Without an open workbook the `ExcelInterop` functions throw an `InvalidOperationException` with the reason ( before: NullReferenceException ).
+
+### <u>6.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
 
