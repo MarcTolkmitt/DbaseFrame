@@ -217,6 +217,8 @@ In writing the data to an excel workbook the strength of the interop classes can
 
 **Update 28.11.2026 ( package 1.0.9 ):** all three classes offer 'ReadColumnNames( int numTable )': the column names of a table or sheet without reading the data, the same names a read puts into 'headers'. A number that does not exist and an empty sheet give an error message. 'AccessOleDb.ColumnNameDummy( )' did nothing and is marked obsolete. 'ExcelOleDb' now counts only worksheets ( no named ranges like the print area or an autofilter ); its numbers follow the alphabetical order of the ACE driver, while 'ExcelInterop' counts in the order of the sheets in Excel. Versions: 'ExcelInterop' 1.0.9, 'ExcelOleDb' 1.0.15, 'AccessOleDb' 1.0.7. New test files: 'Blaetter_Test.xlsx' ( several sheets, empty sheet, header only, duplicate headers, mixed column ), 'Leer_Test.xlsx' and damaged files ( 'Null_Test.xlsx', 'KeinZip_Test.xlsx', 'ZipOhneMappe_Test.xlsx', 'XmlKaputt_Test.xlsx' ).
 
+**Update 28.11.2026 ( limits of the ACE driver behind 'ExcelOleDb', measured ):** the driver guesses the type of a column from its first 8 rows. Text that comes later in a number column ( 'no number', TRUE, '1,5' ) arrives in 'ReadStringList' as an empty text, without an error. A damaged sheet inside the workbook can be read up to the damaged spot without an error ( 'XmlKaputt_Test.xlsx': 3 of 10 rows ). 'ExcelInterop' takes every cell value from Excel itself and does not guess column types, so it suits mixed columns better.
+
 ### <u>14.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.

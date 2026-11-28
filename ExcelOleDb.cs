@@ -56,7 +56,10 @@ namespace DbaseFrame
         /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelInterop ); ReadTableNames, GetTableName
         ///           und ReadColumnNames zählen nur noch Arbeitsblätter ( SheetTables ), keine benannten Bereiche
         ///           ( Druckbereich, _xlnm#_FilterDatabase ); Reihenfolge des Treibers ( alphabetisch, nicht wie in Excel );
-        ///           ReadColumnNames meldet ein leeres Blatt ( InvalidDataException, wie ExcelInterop )
+        ///           ReadColumnNames meldet ein leeres Blatt ( InvalidDataException, wie ExcelInterop );
+        ///           Grenzen des ACE-Treibers dokumentiert ( gemessen, Entscheidung: dokumentieren statt umgehen ):
+        ///           Text nach den ersten 8 Zeilen einer Zahlenspalte kommt als leerer Text ( ReadStringList ),
+        ///           ein beschädigtes Blatt-XML wird ohne Meldung nur bis zur Bruchstelle gelesen
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -326,6 +329,8 @@ namespace DbaseFrame
         /// <summary>
         /// Reads the table's data types as anonymous array of
         /// strings into 'valuesTypes'.
+        /// Grenze des ACE-Treibers wie bei ReadStringList: Text nach den ersten 8 Zeilen einer Zahlenspalte ergibt
+        /// System.DBNull ( gemessen 28.11.26 ).
         /// </summary>
         /// <param name="file">filename</param>
         /// <param name="silent">can use the file dialog</param>
@@ -365,6 +370,10 @@ namespace DbaseFrame
         /// <summary>
         /// Reads the table's data as anonymous array of
         /// strings into 'valuesString'.
+        /// Grenze des ACE-Treibers ( gemessen 28.11.26, gewollt dokumentiert statt umgangen ): er schätzt den Typ einer
+        /// Spalte aus den ersten 8 Zeilen; steht danach Text in einer Zahlenspalte ( "keine Zahl", WAHR, "1,5" ), kommt er
+        /// als DBNull, also als leerer Text, ohne Meldung. ExcelInterop nimmt jeden Zellwert selbst ( Value2 ) und
+        /// schätzt keine Spaltentypen, passt also besser zu gemischten Spalten.
         /// </summary>
         /// <param name="file">filename</param>
         /// <param name="silent">can use the file dialog</param>
