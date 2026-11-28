@@ -33,6 +33,11 @@ using Excel = Microsoft.Office.Interop.Excel;
 
 namespace DbaseFrame
 {
+    /// <summary>
+    /// Reads and writes Excel workbooks through Excel itself ( COM Interop, Excel must be installed ): sheets, column
+    /// names, texts, numbers and cell types; writes into the open workbook or a new one. Call ExcelInteropQuit at the
+    /// end. History: see the field 'version'.
+    /// </summary>
     public class ExcelInterop
     {
         /// <summary>
@@ -76,8 +81,17 @@ namespace DbaseFrame
         Microsoft.Office.Interop.Excel.Workbook workbook = null!;
         Microsoft.Office.Interop.Excel.Worksheet worksheet = null!;
 
+        /// <summary>
+        /// true = the first row of the data rectangle holds the column names ( set by the constructor ).
+        /// </summary>
         public bool useHeader = true;
+        /// <summary>
+        /// Name of the workbook as given to the constructor or chosen in the dialog.
+        /// </summary>
         public string fileName = "";
+        /// <summary>
+        /// Name of the target file chosen by ChooseTarget ( called by Write…ToNewTarget ).
+        /// </summary>
         public string targetFileName = "";
 
         /// <summary>
@@ -86,10 +100,25 @@ namespace DbaseFrame
         /// leer, nur nach gelungenem Schreiben gesetzt.
         /// </summary>
         public string writtenTableName = "";
+        /// <summary>
+        /// Texts of the last ReadStrings as [ column, row ]; also the data for WriteStringsToNewTarget.
+        /// </summary>
         public string[,] valuesStringArray = null!;
+        /// <summary>
+        /// Numbers of the last ReadDoubles as [ column, row ]; also the data for WriteDoublesToNewTarget.
+        /// </summary>
         public double[,] valuesDoubleArray = null!;
+        /// <summary>
+        /// .NET type name of every cell of the last ReadTypes as [ column, row ].
+        /// </summary>
         public string[,] valuesTypesArray = null!;
+        /// <summary>
+        /// Names of the worksheets of the workbook, filled by ReadSheetNames.
+        /// </summary>
         public string[] sheets = new string[1];
+        /// <summary>
+        /// Index of the chosen sheet ( set by SelectSheet ); -1 = none chosen yet.
+        /// </summary>
         public int sheetNumber = -1;
 
         /// <summary>
@@ -162,6 +191,11 @@ namespace DbaseFrame
 
         }   // end: ExcelInterop ( constructor )
 
+        /// <summary>
+        /// Closes the workbook, quits Excel and releases every COM object held by this instance. Without this call
+        /// Excel keeps running after the program ends. A second call does nothing.
+        /// Note: the workbook is closed WITH saving its changes, unless it was opened with readOnly = true.
+        /// </summary>
         public void ExcelInteropQuit()
         {
             /* Alle festgehaltenen COM-Objekte freigeben, sonst läuft Excel nach dem Programmende weiter:

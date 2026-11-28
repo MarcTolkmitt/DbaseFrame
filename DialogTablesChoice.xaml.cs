@@ -38,14 +38,19 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 06.11.24
+        /// last edit: 28.11.26
+        /// 28.11.26: XML-Kommentar für den Konstruktor ( GenerateDocumentationFile )
         /// </summary>
-        Version version = new Version( "1.0.4" );
+        Version version = new Version( "1.0.5" );
         /// <summary>
         /// Chosen table's number
         /// </summary>
         public int index = -1;
-        
+
+        /// <summary>
+        /// Shows the given table names in a list to choose one; the chosen number is in 'index'.
+        /// </summary>
+        /// <param name="dataStrings">names to choose from ( e.g. ReadTableNames / ReadSheetNames )</param>
         public DialogTablesChoice( string[] dataStrings )
         {
             InitializeComponent();

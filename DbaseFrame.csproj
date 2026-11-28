@@ -23,7 +23,8 @@
          braucht für Änderungen eine neue, auch am selben Tag ). -->
     <Version>1.0.9</Version>
     <AssemblyTitle>DbaseFrame</AssemblyTitle>
-    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+    <!-- 28.11.26: XML-Doku eingeschaltet ( IntelliSense im Paket ), alle Warnungen behoben -->
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

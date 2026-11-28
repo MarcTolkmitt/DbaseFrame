@@ -71,6 +71,7 @@ namespace DbaseFrame
         /// helper function, writing array data into a string
         /// </summary>
         /// <param name="data">2d ragged array </param>
+        /// <param name="textWrap">true = a line break after every row</param>
         /// <returns>the data as string</returns>
         public string ArrayJaggedToString( string[][] data, bool textWrap = false )
         {
@@ -92,6 +93,7 @@ namespace DbaseFrame
         /// helper function, writing array data into a string
         /// </summary>
         /// <param name="data">2d ragged array </param>
+        /// <param name="textWrap">true = a line break after every row</param>
         /// <returns>the data as string</returns>
         public string ArrayJaggedToString( double[][] data, bool textWrap = false )
         {
@@ -162,7 +164,7 @@ namespace DbaseFrame
         /// <summary>
         /// helper function to write the text into the main window
         /// </summary>
-        /// <param name="text">any-object-variant</param>
+        /// <param name="obj">any-object-variant</param>
         private void Display( Object obj )
         {
             Display( obj.ToString() );

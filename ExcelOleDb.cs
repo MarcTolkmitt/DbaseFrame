@@ -30,6 +30,10 @@ using System.Data;
 
 namespace DbaseFrame
 {
+    /// <summary>
+    /// Reads and writes Excel files ( .xlsx ) through the ACE OleDb driver: table names, column names, texts,
+    /// numbers and cell types of a table; writes one new table into a new file. History: see the field 'version'.
+    /// </summary>
     public class ExcelOleDb
     {
         /// <summary>
@@ -72,22 +76,49 @@ namespace DbaseFrame
         Version version = new Version( "1.0.15" );
 
         // Connect to the Excel file
+        /// <summary>
+        /// First part of the connection string: provider and "Data Source=", followed by the file name.
+        /// </summary>
         public string conStringStart =
             "Provider=Microsoft.ACE.OLEDB.12.0;" +
             "Data Source=";
+        /// <summary>
+        /// Part of the connection string after the file name: opens the Extended Properties for Excel 12.0 Xml.
+        /// </summary>
         public string conStringEnd =
             ";Extended Properties=\"Excel 12.0 Xml;";
+        /// <summary>
+        /// Last part of the connection string when the first row is the header ( HDR=YES ).
+        /// </summary>
         public string withHeader = "HDR=YES;\"";
+        /// <summary>
+        /// Last part of the connection string when there is no header row ( HDR=NO ).
+        /// </summary>
         public string withoutHeader = "HDR=NO;\"";
+        /// <summary>
+        /// true = the first row of a table holds the column names ( set by the constructor ).
+        /// </summary>
         public bool useHeader = true;
+        /// <summary>
+        /// Connection string of the source file: conStringStart + file + conStringEnd + withHeader or withoutHeader.
+        /// </summary>
         public string connectionString = "";
+        /// <summary>
+        /// Connection string of the target file chosen by ChooseTarget ( always with header ).
+        /// </summary>
         public string targetConnectionString = "";
+        /// <summary>
+        /// Name of the source file as given to the constructor or chosen in the dialog.
+        /// </summary>
         public string fileName = "";
 
         /// <summary>
         /// Grund, wenn keine Datei gewählt ist ( z. B. "Dateiauswahl abgebrochen" ); sonst leer ( wie ExcelInterop ).
         /// </summary>
         public string lastError = "";
+        /// <summary>
+        /// Name of the target file chosen by ChooseTarget ( called by Write…ToNewTarget ).
+        /// </summary>
         public string targetFileName = "";
 
         /// <summary>
@@ -96,8 +127,17 @@ namespace DbaseFrame
         /// geschriebenen Datei gelesen. Zu Beginn jedes Schreibens leer, nur nach gelungenem Schreiben gesetzt.
         /// </summary>
         public string writtenTableName = "";
+        /// <summary>
+        /// Texts of the last ReadStringList, one array per row; also the data for WriteListStringToNewTarget.
+        /// </summary>
         public List<string[]> valuesString = new List<string[]>();
+        /// <summary>
+        /// Numbers of the last ReadDoubleList, one array per row; also the data for WriteListDoubleToNewTarget.
+        /// </summary>
         public List<double[]> valuesDouble = new List<double[]>();
+        /// <summary>
+        /// .NET type name of every cell of the last ReadTypesList, one array per row.
+        /// </summary>
         public List<string[]> valuesTypes = new List<string[]>();
 
         /// <summary>
@@ -111,7 +151,13 @@ namespace DbaseFrame
         // Schreibfunktionen die Kopfzeile genau dieser Daten nehmen, auch wenn danach ein anderes Lesen scheitert
         string[] headersString = new string[ 0 ];
         string[] headersDouble = new string[ 0 ];
+        /// <summary>
+        /// Names of the worksheets ( tables ) of the source file, filled by ReadTableNames.
+        /// </summary>
         public string[] sheets = new string[1];
+        /// <summary>
+        /// Index of the chosen table in 'sheets'; -1 = none chosen yet.
+        /// </summary>
         public int sheetNumber = -1;
 
         /// <summary>
@@ -124,6 +170,7 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="file">a file name</param>
         /// <param name="silent">query for the name via dialog ?</param>
+        /// <param name="doUseHeader">true = the first row of a table holds the column names ( HDR=YES )</param>
         public ExcelOleDb( string file = "", bool silent = true,  bool doUseHeader = true )
         {
             fileName = file;
@@ -240,15 +287,15 @@ namespace DbaseFrame
 
         }   // end: DialogFileNameLoad
 
-        /// <summary>
-        /// Öffnet die Verbindung zur Quelldatei zum Lesen.
-        /// </summary>
         /* Die Datei hat zu passen, sonst Fehlermeldung:
          *  - fehlt sie, legt der ACE-Treiber beim Öffnen stillschweigend eine neue, leere Mappe an
          *    → vorher prüfen, FileNotFoundException
          *  - ist sie beschädigt, kein Excel-Format, kennwortgeschützt oder woanders gesperrt, wirft Open( ) eine OleDbException
          *    ( "Die externe Tabelle hat nicht das erwartete Format." ) → InvalidDataException mit Dateinamen
         */
+        /// <summary>
+        /// Öffnet die Verbindung zur Quelldatei zum Lesen.
+        /// </summary>
         /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
         /// <param name="imex">mit IMEX=1: gemischte Spalten kommen als Text statt als DBNull ( für ReadDoubleList )</param>
         OleDbConnection OpenSource( bool imex = false )
@@ -277,15 +324,15 @@ namespace DbaseFrame
 
         }   // Ende: OleDbConnection OpenSource
 
-        /// <summary>
-        /// Prüft vor dem Öffnen mit dem ACE-Treiber, ob sich die Datei lesen lässt.
-        /// </summary>
         /* Grund ( 27.11.26, gemessen ): Hält ein anderer Prozess die Datei ohne Lesefreigabe offen
          * ( FileShare.None ), stürzt der ACE-Treiber in OleDbConnection.Open( ) mit einer Zugriffsverletzung
          * ( 0xC0000005 ) ab; das beendet das ganze Programm und lässt sich nicht abfangen.
          * Eine normal in Excel geöffnete Datei besteht die Prüfung; dafür meldet sich der Treiber selbst
          * ( "bereits exklusiv geöffnet", siehe OpenSource ).
         */
+        /// <summary>
+        /// Prüft vor dem Öffnen mit dem ACE-Treiber, ob sich die Datei lesen lässt.
+        /// </summary>
         /// <param name="datei">voller Dateiname</param>
         /// <exception cref="IOException">Datei gesperrt oder ohne Leserecht</exception>
         internal static void CheckReadable( string datei )
@@ -518,8 +565,6 @@ namespace DbaseFrame
         /// Grenze des ACE-Treibers wie bei ReadStringList: Text nach den ersten 8 Zeilen einer Zahlenspalte ergibt
         /// System.DBNull ( gemessen 28.11.26 ).
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadTypesList( )
         {
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
@@ -561,8 +606,6 @@ namespace DbaseFrame
         /// als DBNull, also als leerer Text, ohne Meldung. ExcelInterop nimmt jeden Zellwert selbst ( Value2 ) und
         /// schätzt keine Spaltentypen, passt also besser zu gemischten Spalten.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadStringList( )
         {
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
@@ -603,8 +646,6 @@ namespace DbaseFrame
         /// Reads the table's data as anonymous array of
         /// doubles into 'valuesDouble'.
         /// </summary>
-        /// <param name="file">filename</param>
-        /// <param name="silent">can use the file dialog</param>
         public void ReadDoubleList( )
         {
             // ganz oder gar nicht ( 27.11.26, wie ExcelInterop ): zu Beginn leeren, lokal füllen, am Ende zuweisen
@@ -937,7 +978,7 @@ namespace DbaseFrame
         /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.
+        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
         /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>
@@ -1013,7 +1054,7 @@ namespace DbaseFrame
         /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.
+        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
         /// <exception cref="InvalidOperationException">keine Texte zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>

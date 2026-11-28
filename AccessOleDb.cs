@@ -30,6 +30,10 @@ using System.Windows.Controls;
 
 namespace DbaseFrame
 {
+    /// <summary>
+    /// Reads and writes Access databases ( .accdb ) through the ACE OleDb driver: table names, column names, texts,
+    /// numbers and cell types of a table; writes one new table into a new database. History: see the field 'version'.
+    /// </summary>
     public class AccessOleDb
     {
         /// <summary>
@@ -62,14 +66,38 @@ namespace DbaseFrame
                                  "Uid=Admin;Pwd=;";
         Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\\path\\to\\yourdatabase.accdb;
         */
+        /// <summary>
+        /// First part of the source connection string: provider and "Data Source=", followed by the file name.
+        /// </summary>
         public string sourceConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        /// <summary>
+        /// Full path of the source database; empty = no file chosen ( see 'lastError' ).
+        /// </summary>
         public string sourceConnectionFile = "";
+        /// <summary>
+        /// Part of the source connection string after the file name.
+        /// </summary>
         public string sourceConnectionOptions = ";";
+        /// <summary>
+        /// Connection string of the source: sourceConnectionStart + sourceConnectionFile + sourceConnectionOptions.
+        /// </summary>
         public string sourceConnectionString = "";
 
+        /// <summary>
+        /// First part of the target connection string: provider and "Data Source=", followed by the file name.
+        /// </summary>
         public string targetConnectionStart = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=";
+        /// <summary>
+        /// Full path of the target database chosen by ChooseTarget ( called by Write…ToNewTarget ).
+        /// </summary>
         public string targetConnectionFile = "";
+        /// <summary>
+        /// Part of the target connection string after the file name.
+        /// </summary>
         public string targetConnectionOptions = ";";
+        /// <summary>
+        /// Connection string of the target database chosen by ChooseTarget.
+        /// </summary>
         public string targetConnectionString = "";
 
         /// <summary>
@@ -79,11 +107,26 @@ namespace DbaseFrame
         /// </summary>
         public string writtenTableName = "";
 
+        /// <summary>
+        /// Texts of the last ReadStringList, one array per row; also the data for WriteListStringToNewTarget.
+        /// </summary>
         public List<string[]> valuesString = new List<string[]>();
+        /// <summary>
+        /// Numbers of the last ReadDoubleList, one array per row; also the data for WriteListDoubleToNewTarget.
+        /// </summary>
         public List<double[]> valuesDouble = new List<double[]>();
+        /// <summary>
+        /// .NET type name of every cell of the last ReadTypesList, one array per row.
+        /// </summary>
         public List<string[]> valuesTypes = new List<string[]>();
 
+        /// <summary>
+        /// Names of the user tables of the source database, filled by ReadTableNames.
+        /// </summary>
         public string[] sheets = new string[1];
+        /// <summary>
+        /// Index of the chosen table in 'sheets'; -1 = none chosen yet.
+        /// </summary>
         public int sheetNumber = -1;
 
         /// <summary>
@@ -128,13 +171,13 @@ namespace DbaseFrame
 
         }   // end: AccessOleDb ( constructor )
 
-        /// <summary>
-        /// Öffnet die Verbindung zur Quelldatei zum Lesen ( wie ExcelOleDb.OpenSource ).
-        /// </summary>
         /* Die Datei hat zu passen, sonst Fehlermeldung ( 27.11.26 ):
          *  - keine Datei gewählt ( Dialog abgebrochen ), fehlend, ganz gesperrt ( sonst Absturz im ACE-Treiber ),
          *    beschädigt / kein Access-Format / kennwortgeschützt / exklusiv geöffnet
         */
+        /// <summary>
+        /// Öffnet die Verbindung zur Quelldatei zum Lesen ( wie ExcelOleDb.OpenSource ).
+        /// </summary>
         /// <returns>die geöffnete Verbindung ( mit using verwenden )</returns>
         OleDbConnection OpenSource( )
         {
