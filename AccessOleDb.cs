@@ -47,7 +47,10 @@ namespace DbaseFrame
         ///           ohne System.Data.Odbc ( wurde nicht mehr gebraucht, Paket entfernt )
         /// 28.11.26: ReadColumnNames( numTable ) ersetzt ColumnNameDummy ( las nur die Spalten der Schematabelle und
         ///           verwarf sie; bleibt als leere [Obsolete]-Methode eine Version lang stehen ); gleich in ExcelOleDb
-        ///           und ExcelInterop
+        ///           und ExcelInterop;
+        ///           Punkt l: keine MessageBox mehr aus der Bibliothek: keine Daten → InvalidOperationException,
+        ///           vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true, sonst IOException
+        ///           ( ExcelOleDb.CheckHasData / PrepareTarget ); Rückgabe false heißt nur noch „Dialog abgebrochen“
         /// </summary>
         Version version = new Version( "1.0.7" );
         /*
@@ -435,40 +438,29 @@ namespace DbaseFrame
 
         /// <summary>
         /// Gemeinsamer Ablauf beider Schreibfunktionen ( 27.11.26 ): Ziel wählen ( Abbruch → false ), vorhandene Datei nur
-        /// nach Rückfrage ersetzen, neue Datei per ADOX anlegen, Tabelle anlegen und Zeilen einfügen. Die Verbindung bleibt
+        /// nach Bestätigung im Dialog oder mit 'overwrite' ersetzen ( 28.11.26, ExcelOleDb.PrepareTarget statt MessageBox ),
+        /// neue Datei per ADOX anlegen, Tabelle anlegen und Zeilen einfügen. Die Verbindung bleibt
         /// zwischen CREATE und INSERT offen ( Lehre aus ExcelOleDb ). Spaltennamen aus 'headers' ( ExcelOleDb.ColumnNamesForWrite ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Tabellenname</param>
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen</param>
+        /// <param name="funktion">aufrufende Funktion für Meldungen</param>
         /// <param name="columns">Spaltenzahl der Daten</param>
         /// <param name="typ">SQL-Typ ( DOUBLE, VARCHAR )</param>
         /// <param name="parameterTyp">OleDb-Typ der Werte</param>
         /// <param name="zeilen">die Zeilen als Werte</param>
         /// <param name="kopf">Spaltennamen genau dieser Daten ( headersDouble bzw. headersString )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen</returns>
-        bool WriteTable( string newFileTarget, string newTableName, int columns, string typ, OleDbType parameterTyp,
-            IEnumerable<object[]> zeilen, string[] kopf )
+        bool WriteTable( string newFileTarget, string newTableName, bool overwrite, string funktion, int columns, string typ,
+            OleDbType parameterTyp, IEnumerable<object[]> zeilen, string[] kopf )
         {
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                // ohne Namen per Dialog; abgebrochen: nichts schreiben
-                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return ( false );
-
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
+            bool perDialog = ( newFileTarget == "" );
+            // ohne Namen per Dialog; abgebrochen: nichts schreiben
+            if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
+                return ( false );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite'
+            ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, funktion );
 
             CreateDatabase( newFileTarget );
             string commandCreate = ExcelOleDb.TableCommands( newTableName,
@@ -499,18 +491,20 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Tabellenname</param>
-        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben</returns>
-        public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
+        /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
-            if ( ( valuesDouble.Count < 1 ) || ( valuesDouble[ 0 ].Length == 0 ) )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return ( false );
-            }
+            const string funktion = "AccessOleDb.WriteListDoubleToNewTarget";
+            // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
+            ExcelOleDb.CheckHasData( valuesDouble, funktion, "ReadDoubleList" );
             List<object[]> zeilen = new List<object[]>( );
             foreach ( double[] zeile in valuesDouble )
                 zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
-            return ( WriteTable( newFileTarget, newTableName, valuesDouble[ 0 ].Length, "DOUBLE", OleDbType.Double, zeilen, headersDouble ) );
+            return ( WriteTable( newFileTarget, newTableName, overwrite, funktion, valuesDouble[ 0 ].Length, "DOUBLE",
+                OleDbType.Double, zeilen, headersDouble ) );
 
         }   // end: WriteListDoubleToNewTarget
 
@@ -521,21 +515,23 @@ namespace DbaseFrame
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Tabellenname</param>
-        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben</returns>
-        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
+        /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
+        /// <exception cref="ArgumentException">ein Text ist länger als 'ExcelOleDb.maxTextLength'</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
-            if ( ( valuesString.Count < 1 ) || ( valuesString[ 0 ].Length == 0 ) )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return ( false );
-            }
-            // die Daten haben zu passen: vor Dialog und Datei prüfen ( wie ExcelOleDb )
-            ExcelOleDb.CheckTextLength( valuesString, "AccessOleDb.WriteListStringToNewTarget" );
+            const string funktion = "AccessOleDb.WriteListStringToNewTarget";
+            // die Daten haben zu passen: vor Dialog und Datei prüfen ( wie ExcelOleDb; 28.11.26: Ausnahme statt MessageBox )
+            ExcelOleDb.CheckHasData( valuesString, funktion, "ReadStringList" );
+            ExcelOleDb.CheckTextLength( valuesString, funktion );
             List<object[]> zeilen = new List<object[]>( );
             foreach ( string[] zeile in valuesString )
                 zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen )
-            return ( WriteTable( newFileTarget, newTableName, valuesString[ 0 ].Length, "VARCHAR", OleDbType.VarChar, zeilen, headersString ) );
+            return ( WriteTable( newFileTarget, newTableName, overwrite, funktion, valuesString[ 0 ].Length, "VARCHAR",
+                OleDbType.VarChar, zeilen, headersString ) );
 
         }   // end: WriteListStringToNewTarget
 
@@ -594,6 +590,7 @@ namespace DbaseFrame
         {
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
             dialog.FileName = fileName; // Default file name
             dialog.DefaultExt = ".accdb"; // Default file extension
             dialog.Filter = "Access save file (.accdb)|*.accdb"; // Filter files by extension

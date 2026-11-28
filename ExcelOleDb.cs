@@ -59,7 +59,10 @@ namespace DbaseFrame
         ///           ReadColumnNames meldet ein leeres Blatt ( InvalidDataException, wie ExcelInterop );
         ///           Grenzen des ACE-Treibers dokumentiert ( gemessen, Entscheidung: dokumentieren statt umgehen ):
         ///           Text nach den ersten 8 Zeilen einer Zahlenspalte kommt als leerer Text ( ReadStringList ),
-        ///           ein beschädigtes Blatt-XML wird ohne Meldung nur bis zur Bruchstelle gelesen
+        ///           ein beschädigtes Blatt-XML wird ohne Meldung nur bis zur Bruchstelle gelesen;
+        ///           Punkt l: keine MessageBox mehr aus der Bibliothek: keine Daten → InvalidOperationException
+        ///           ( CheckHasData ), vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true
+        ///           ( PrepareTarget ), sonst IOException; Rückgabe false heißt nur noch „Dialog abgebrochen“
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -204,6 +207,7 @@ namespace DbaseFrame
         {
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
             dialog.FileName = fileName; // Default file name
             dialog.DefaultExt = ".xlsx"; // Default file extension
             dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
@@ -323,6 +327,52 @@ namespace DbaseFrame
                             + " sind möglich. Nichts geschrieben." );
 
         }   // Ende: void CheckTextLength
+
+        /// <summary>
+        /// Prüft vor dem Schreiben, dass es Daten gibt ( 28.11.26, Punkt l: ersetzt die MessageBox "No data to write"
+        /// in ExcelOleDb und AccessOleDb; ExcelInterop meldet das schon so ).
+        /// </summary>
+        /// <typeparam name="T">double oder string</typeparam>
+        /// <param name="rows">die Zeilen ( valuesDouble bzw. valuesString )</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
+        /// <param name="lesen">Lesefunktion, die die Daten liefert ( für den Hinweis in der Meldung )</param>
+        /// <exception cref="InvalidOperationException">keine Zeilen oder leere erste Zeile, nichts geschrieben</exception>
+        internal static void CheckHasData<T>( List<T[]> rows, string funktion, string lesen )
+        {
+            if ( ( rows == null ) || ( rows.Count < 1 ) || ( rows[ 0 ].Length == 0 ) )
+                throw new InvalidOperationException( funktion + ": keine Daten zum Schreiben ( zuerst " + lesen
+                    + " fehlerfrei ausführen ). Nichts geschrieben." );
+
+        }   // Ende: void CheckHasData
+
+        /// <summary>
+        /// Bereitet die Zieldatei vor dem Schreiben vor ( 28.11.26, Punkt l: ersetzt die Rückfrage per MessageBox in
+        /// allen drei Klassen ). Eine vorhandene Datei wird nur gelöscht, wenn 'ersetzen' gilt: im Speichern-Dialog
+        /// bestätigt ( Windows fragt dort selbst, OverwritePrompt ) oder vom Aufrufer mit overwrite: true freigegeben.
+        /// Sonst Ausnahme, die Datei bleibt unberührt.
+        /// </summary>
+        /// <param name="datei">voller Name der Zieldatei</param>
+        /// <param name="ersetzen">true = eine vorhandene Datei darf gelöscht werden</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
+        /// <exception cref="IOException">Datei vorhanden und nicht freigegeben, oder sie lässt sich nicht löschen</exception>
+        internal static void PrepareTarget( string datei, bool ersetzen, string funktion )
+        {
+            if ( !File.Exists( datei ) )
+                return;
+            if ( !ersetzen )
+                throw new IOException( funktion + ": Die Zieldatei gibt es schon: " + datei
+                    + " ( zum Ersetzen overwrite: true übergeben oder einen anderen Namen wählen ). Nichts geschrieben." );
+            try
+            {   // vorhandene Datei löschen
+                File.Delete( datei );
+            }   // Ende: vorhandene Datei löschen
+            catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
+            {   // gesperrt oder schreibgeschützt: verständlich melden
+                throw new IOException( funktion + ": Die vorhandene Zieldatei lässt sich nicht ersetzen: " + datei
+                    + " ( in einem anderen Programm geöffnet oder schreibgeschützt? ). Nichts geschrieben.", fehler );
+            }   // Ende: gesperrt oder schreibgeschützt
+
+        }   // Ende: void PrepareTarget
 
         // --------------------------------------------     the routines
 
@@ -744,40 +794,29 @@ namespace DbaseFrame
 
 
         /// <summary>
-        /// Intern data list double will be written into a new 
+        /// Intern data list double will be written into a new
         /// Excel file. If not given a name a dialog will query for it.
+        /// Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist
+        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ).
         /// </summary>
-        /// <param name="newFileTarget"></param>
-        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben
-        /// ( 27.11.26, wie ExcelInterop )</returns>
-        public bool WriteListDoubleToNewTarget( string newFileTarget = "",string newTableName = "newDoubles" )
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Name der neuen Tabelle</param>
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
+        /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
-            if ( ( valuesDouble.Count < 1 ) || ( valuesDouble[ 0 ].Length == 0 ) )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
+            // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
+            CheckHasData( valuesDouble, "ExcelOleDb.WriteListDoubleToNewTarget", "ReadDoubleList" );
+
+            bool perDialog = ( newFileTarget == "" );
+            // ohne Namen per Dialog; abgebrochen: nichts schreiben
+            if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
                 return ( false );
-            }
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite'
+            PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelOleDb.WriteListDoubleToNewTarget" );
 
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                // ohne Namen per Dialog; abgebrochen: nichts schreiben
-                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return ( false );
-
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
             // craft the 'CREATE TABLE' and 'INSERT INTO'; Spaltennamen bei useHeader aus der gelesenen
             // Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesDouble[0].Length;
@@ -811,43 +850,32 @@ namespace DbaseFrame
         }   // end: WriteListDoubleToNewTarget
 
         /// <summary>
-        /// Intern data list string will be written into a new 
+        /// Intern data list string will be written into a new
         /// Excel file. If not given a name a dialog will query for it.
+        /// Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist
+        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ).
         /// </summary>
-        /// <param name="newFileTarget"></param>
-        /// <returns>true = geschrieben; false = keine Daten oder Dialog abgebrochen, nichts geschrieben
-        /// ( 27.11.26, wie ExcelInterop )</returns>
-        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
+        /// <param name="newTableName">Name der neuen Tabelle</param>
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
+        /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
+        /// <exception cref="ArgumentException">ein Text ist länger als 'maxTextLength'</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
-            if ( ( valuesString.Count < 1 ) || ( valuesString[ 0 ].Length == 0 ) )
-            {   // no data to write
-                Message.Show( "No data to write, abort!" );
-                return ( false );
-            }
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
-            // die Zieldatei blieb mit leerer Tabelle zurück )
+            // die Zieldatei blieb mit leerer Tabelle zurück; 28.11.26: keine Daten → Ausnahme statt MessageBox )
+            CheckHasData( valuesString, "ExcelOleDb.WriteListStringToNewTarget", "ReadStringList" );
             CheckTextLength( valuesString, "ExcelOleDb.WriteListStringToNewTarget" );
 
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                // ohne Namen per Dialog; abgebrochen: nichts schreiben
-                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return ( false );
+            bool perDialog = ( newFileTarget == "" );
+            // ohne Namen per Dialog; abgebrochen: nichts schreiben
+            if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
+                return ( false );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite'
+            PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelOleDb.WriteListStringToNewTarget" );
 
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
             // craft the 'CREATE TABLE' and 'INSERT INTO'
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen );
             // Spaltennamen bei useHeader aus der gelesenen Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )

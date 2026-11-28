@@ -30,7 +30,7 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 27.11.26
+        /// last edit: 28.11.26
         /// 27.11.26: Menü "Interop Excel" führt ExcelInterop vor; Excel- und Access-Menüpunkte über SafeDo:
         ///           Fehler ( z. B. defekte Datei ) werden angezeigt statt das Programm abzubrechen;
         ///           beim Start Paketnummer ( PackageInfo ) und Version des Beispielprogramms anzeigen;
@@ -38,8 +38,10 @@ namespace DbaseFrame
         ///           ( vorher "Object reference not set" ); OleDb-Excel-Dialog abgebrochen → nichts offen ( ExcelLoad );
         ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben );
         ///           Access-Dialog abgebrochen → nichts offen; Access-Schreibmenüs gefüllt ( vorher leer )
+        /// 28.11.26: Punkt l: fehlende Daten meldet die Bibliothek als Ausnahme ( Anzeige über SafeDo ), false heißt
+        ///           beim Schreiben nur noch „abgebrochen“
         /// </summary>
-        Version version = new Version( "1.0.6" );
+        Version version = new Version( "1.0.7" );
 
         // Excel bzw. Access über OleDb; null, solange keine Datei geöffnet ist ( ExcelDo, AccessDo )
         ExcelOleDb? dbfExcel = null;
@@ -406,7 +408,7 @@ namespace DbaseFrame
             {
                 Display( x.WriteListDoubleToNewTarget( )
                     ? "OleDb Excel: Zahlen in eine neue Datei geschrieben"
-                    : "OleDb Excel: nichts geschrieben ( keine Daten oder abgebrochen )" );
+                    : "OleDb Excel: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemWriteListDoubleToExcel_Click
@@ -422,7 +424,7 @@ namespace DbaseFrame
             {
                 Display( x.WriteListStringToNewTarget( )
                     ? "OleDb Excel: Texte in eine neue Datei geschrieben"
-                    : "OleDb Excel: nichts geschrieben ( keine Daten oder abgebrochen )" );
+                    : "OleDb Excel: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemWriteListStringToExcel_Click
@@ -571,7 +573,7 @@ namespace DbaseFrame
             {
                 Display( x.WriteListDoubleToNewTarget( )
                     ? "OleDb Access: Zahlen in eine neue Datei geschrieben"
-                    : "OleDb Access: nichts geschrieben ( keine Daten oder abgebrochen )" );
+                    : "OleDb Access: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemWriteListDoubleToAccess_Click
@@ -587,7 +589,7 @@ namespace DbaseFrame
             {
                 Display( x.WriteListStringToNewTarget( )
                     ? "OleDb Access: Texte in eine neue Datei geschrieben"
-                    : "OleDb Access: nichts geschrieben ( keine Daten oder abgebrochen )" );
+                    : "OleDb Access: abgebrochen, nichts geschrieben" );
             } );
 
         }   // end: _mItemWriteListStringToAccess_Click

@@ -63,7 +63,9 @@ namespace DbaseFrame
         ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie );
         ///           ganz gesperrte Datei → lastError "gesperrt" ( vorher "beschädigt, kein Excel-Format" );
         ///           ReadStrings / ReadDoubles: Blatt nur mit Kopfzeile → Fehlermeldung ( CheckDataRows )
-        /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelOleDb ), Blattwahl bleibt unverändert
+        /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelOleDb ), Blattwahl bleibt unverändert;
+        ///           Punkt l: keine Rückfrage per MessageBox mehr: vorhandene Zieldatei nur nach Bestätigung im Dialog
+        ///           oder mit overwrite: true, sonst IOException ( ExcelOleDb.PrepareTarget )
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -244,6 +246,7 @@ namespace DbaseFrame
         {
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
+            dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
             dialog.FileName = fileName; // Default file name
             dialog.DefaultExt = ".xlsx"; // Default file extension
             dialog.Filter = "Excel save file (.xlsx)|*.xlsx"; // Filter files by extension
@@ -1490,38 +1493,28 @@ namespace DbaseFrame
         /// Intern 2d-array of doubles will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
         /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
-        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur nach Rückfrage ersetzt.
+        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder
+        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
-        public bool WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles" )
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
             CheckFinite( valuesDoubleArray, "WriteDoublesToNewTarget" );
 
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                // ohne Namen per Dialog; abgebrochen: nichts schreiben
-                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return ( false );
-                // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
-                newFileTarget = CompleteTargetName( newFileTarget );
-
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
+            bool perDialog = ( newFileTarget == "" );
+            // ohne Namen per Dialog; abgebrochen: nichts schreiben
+            if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
+                return ( false );
+            // Endung und vollen Pfad ergänzen, damit die Prüfung dieselbe Datei meint, die Excel speichert
+            newFileTarget = CompleteTargetName( newFileTarget );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite' ( 28.11.26 )
+            ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelInterop.WriteDoublesToNewTarget" );
 
             /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
              *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;
@@ -1571,38 +1564,28 @@ namespace DbaseFrame
         /// Intern data list string will be written into a new 
         /// Excel file. If not given a name a dialog will query for it.
         /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
-        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur nach Rückfrage ersetzt.
+        /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder
+        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
+        /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
-        public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings" )
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             // die Daten haben zu passen: es muss Texte geben, vor dem Dialog prüfen ( wie WriteDoublesToNewTarget )
             CheckStrings( valuesStringArray, "WriteStringsToNewTarget" );
 
-            bool overwrite = false;
-            while ( !overwrite )
-            {
-                // ohne Namen per Dialog; abgebrochen: nichts schreiben
-                if ( !ChooseTarget( ref newFileTarget, newFileTarget != "" ) )
-                    return ( false );
-                // Endung und vollen Pfad ergänzen, damit File.Exists dieselbe Datei prüft, die Excel speichert
-                newFileTarget = CompleteTargetName( newFileTarget );
-
-                if ( File.Exists( newFileTarget ) )
-                {
-                    overwrite = Message.Ask( "Do you want to delete the file and its contents ?" );
-                    if ( overwrite )
-                        File.Delete( newFileTarget );
-
-                }
-                else
-                    overwrite = true;
-                if ( !overwrite )
-                    newFileTarget = "";
-
-            }
+            bool perDialog = ( newFileTarget == "" );
+            // ohne Namen per Dialog; abgebrochen: nichts schreiben
+            if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
+                return ( false );
+            // Endung und vollen Pfad ergänzen, damit die Prüfung dieselbe Datei meint, die Excel speichert
+            newFileTarget = CompleteTargetName( newFileTarget );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite' ( 28.11.26 )
+            ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelInterop.WriteStringsToNewTarget" );
 
             /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
              *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;

@@ -219,6 +219,8 @@ In writing the data to an excel workbook the strength of the interop classes can
 
 **Update 28.11.2026 ( limits of the ACE driver behind 'ExcelOleDb', measured ):** the driver guesses the type of a column from its first 8 rows. Text that comes later in a number column ( 'no number', TRUE, '1,5' ) arrives in 'ReadStringList' as an empty text, without an error. A damaged sheet inside the workbook can be read up to the damaged spot without an error ( 'XmlKaputt_Test.xlsx': 3 of 10 rows ). 'ExcelInterop' takes every cell value from Excel itself and does not guess column types, so it suits mixed columns better.
 
+**Update 28.11.2026 ( writing without message boxes from the library ):** the classes no longer show a message box of their own, so they can also be used where nobody can click ( service, server ). All six 'Write…ToNewTarget' functions have a new last parameter 'overwrite' ( default false ). Writing without data throws an 'InvalidOperationException'. An existing target file is replaced only if it was confirmed in the save dialog ( Windows asks there itself ) or 'overwrite: true' was passed; otherwise an 'IOException' is thrown and the file stays untouched. A target file that cannot be deleted ( opened in another program ) also gives an 'IOException'. The return value false now means only: the dialog was cancelled. The file dialogs themselves are still part of the classes.
+
 ### <u>14.Donations</u>
 
 You can if you want donate to me for the **GitHub content**. I always can use it, thank you.
