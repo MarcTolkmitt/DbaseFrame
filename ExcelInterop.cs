@@ -65,7 +65,9 @@ namespace DbaseFrame
         ///           ReadStrings / ReadDoubles: Blatt nur mit Kopfzeile → Fehlermeldung ( CheckDataRows )
         /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelOleDb ), Blattwahl bleibt unverändert;
         ///           Punkt l: keine Rückfrage per MessageBox mehr: vorhandene Zieldatei nur nach Bestätigung im Dialog
-        ///           oder mit overwrite: true, sonst IOException ( ExcelOleDb.PrepareTarget )
+        ///           oder mit overwrite: true, sonst IOException ( ExcelOleDb.PrepareTarget ); Befund H: geschrieben wird in
+        ///           eine Zwischendatei, die alte erst danach ersetzt ( CommitTarget ); Ziel = geöffnete Mappe wird
+        ///           abgewiesen ( vorher gelöscht und dann verloren ); COMException beim Schreiben → IOException
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -1034,6 +1036,22 @@ namespace DbaseFrame
         }   // Ende: string CompleteTargetName
 
         /// <summary>
+        /// Weist als Ziel die gerade geöffnete Mappe ab ( 28.11.26, Befund H ): Excel kann eine neue Mappe nicht unter
+        /// dem Namen einer offenen speichern; vorher wurde die Datei zuerst gelöscht und war danach weg.
+        /// </summary>
+        /// <param name="ziel">vollständiger Zielname ( CompleteTargetName )</param>
+        /// <param name="funktion">aufrufende Funktion für die Meldung</param>
+        /// <exception cref="InvalidOperationException">Ziel ist die geöffnete Mappe</exception>
+        void CheckNotOpenWorkbook( string ziel, string funktion )
+        {
+            if ( workbookOpen && !string.IsNullOrEmpty( fileName )
+                && string.Equals( Path.GetFullPath( fileName ), ziel, StringComparison.OrdinalIgnoreCase ) )
+                throw new InvalidOperationException( funktion + ": Das Ziel ist die geöffnete Mappe " + ziel + ". Bitte einen anderen Namen wählen"
+                    + " ( die geöffnete Mappe selbst speichert SaveWorkbook ). Nichts geschrieben." );
+
+        }   // Ende: void CheckNotOpenWorkbook
+
+        /// <summary>
         /// Writes the 2d-array to the active sheet.
         /// Overwrites anything in its way and starts at A1.
         /// </summary>
@@ -1494,14 +1512,15 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
         /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder
-        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ).
+        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ). Ersetzt wird erst nach gelungenem
+        /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
-        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben, oder das Ziel ist die geöffnete Mappe</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
@@ -1513,14 +1532,19 @@ namespace DbaseFrame
                 return ( false );
             // Endung und vollen Pfad ergänzen, damit die Prüfung dieselbe Datei meint, die Excel speichert
             newFileTarget = CompleteTargetName( newFileTarget );
-            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite' ( 28.11.26 )
-            ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelInterop.WriteDoublesToNewTarget" );
+            // Ziel = geöffnete Mappe: Excel kann nicht unter ihrem Namen speichern, abweisen ( 28.11.26, Befund H )
+            const string funktion = "ExcelInterop.WriteDoublesToNewTarget";
+            CheckNotOpenWorkbook( newFileTarget, funktion );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite';
+            // geschrieben wird in eine Zwischendatei, die alte Datei wird erst danach ersetzt ( 28.11.26, Befund H )
+            string zwischen = ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, funktion );
 
             /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
              *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;
              *    die Zieldatei entstand nicht, die neue Mappe blieb ungespeichert offen ( Excel hing beim Beenden )
             */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
+            bool gespeichert = false;
             try
             {   // neue Mappe füllen und speichern
                 Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
@@ -1549,13 +1573,23 @@ namespace DbaseFrame
                     newSheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesDoubleArray );
                 }   // ende: nur bei Daten schreiben
 
-                newWorkbook.SaveAs( newFileTarget );
+                newWorkbook.SaveAs( zwischen );
+                gespeichert = true;
             }   // Ende: neue Mappe füllen und speichern
+            catch ( COMException fehler )
+            {   // Excel-Fehler verständlich melden ( vorher roh, z. B. 0x800A03EC )
+                throw new IOException( funktion + ": Excel konnte die neue Mappe nicht schreiben oder speichern ( "
+                    + fehler.Message + " ). Die Zieldatei ist unverändert.", fehler );
+            }   // Ende: Excel-Fehler verständlich melden
             finally
             {   // neue Mappe schließen ( gespeichert ist sie schon ), die geöffnete wird wieder aktiv
                 newWorkbook.Close( SaveChanges: false );
                 Marshal.ReleaseComObject( newWorkbook );
+                // gescheitert: Zwischendatei erst nach dem Schließen entfernen ( vorher hält Excel sie )
+                if ( !gespeichert )
+                    ExcelOleDb.DeleteQuiet( zwischen );
             }   // Ende: neue Mappe schließen
+            ExcelOleDb.CommitTarget( zwischen, newFileTarget, funktion );
             return ( true );
 
         }   // end: WriteDoublesToNewTarget
@@ -1565,14 +1599,15 @@ namespace DbaseFrame
         /// Excel file. If not given a name a dialog will query for it.
         /// Die neue Mappe wird unter diesem Namen gespeichert und geschlossen; die geöffnete Mappe bleibt
         /// unverändert und wieder aktiv. Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder
-        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ).
+        /// 'overwrite' gesetzt ist ( 28.11.26, ohne MessageBox aus der Bibliothek ). Ersetzt wird erst nach gelungenem
+        /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name des Blatts in der neuen Mappe ( leer = Excels Name )</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben, false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
-        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben, oder das Ziel ist die geöffnete Mappe</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             // die Daten haben zu passen: es muss Texte geben, vor dem Dialog prüfen ( wie WriteDoublesToNewTarget )
@@ -1584,14 +1619,19 @@ namespace DbaseFrame
                 return ( false );
             // Endung und vollen Pfad ergänzen, damit die Prüfung dieselbe Datei meint, die Excel speichert
             newFileTarget = CompleteTargetName( newFileTarget );
-            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite' ( 28.11.26 )
-            ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelInterop.WriteStringsToNewTarget" );
+            // Ziel = geöffnete Mappe: Excel kann nicht unter ihrem Namen speichern, abweisen ( 28.11.26, Befund H )
+            const string funktion = "ExcelInterop.WriteStringsToNewTarget";
+            CheckNotOpenWorkbook( newFileTarget, funktion );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite';
+            // geschrieben wird in eine Zwischendatei, die alte Datei wird erst danach ersetzt ( 28.11.26, Befund H )
+            string zwischen = ExcelOleDb.PrepareTarget( newFileTarget, perDialog || overwrite, funktion );
 
             /* in die neue Mappe schreiben und sie unter dem Zielnamen speichern
              *  - 27.11.26: vorher wurde in das Blatt der geöffneten Mappe geschrieben und diese gespeichert;
              *    die Zieldatei entstand nicht, die neue Mappe blieb ungespeichert offen ( Excel hing beim Beenden )
             */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
+            bool gespeichert = false;
             try
             {   // neue Mappe füllen und speichern
                 Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
@@ -1620,13 +1660,23 @@ namespace DbaseFrame
                     newSheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesStringArray );
                 }   // ende: nur bei Daten schreiben
 
-                newWorkbook.SaveAs( newFileTarget );
+                newWorkbook.SaveAs( zwischen );
+                gespeichert = true;
             }   // Ende: neue Mappe füllen und speichern
+            catch ( COMException fehler )
+            {   // Excel-Fehler verständlich melden ( vorher roh, z. B. 0x800A03EC )
+                throw new IOException( funktion + ": Excel konnte die neue Mappe nicht schreiben oder speichern ( "
+                    + fehler.Message + " ). Die Zieldatei ist unverändert.", fehler );
+            }   // Ende: Excel-Fehler verständlich melden
             finally
             {   // neue Mappe schließen ( gespeichert ist sie schon ), die geöffnete wird wieder aktiv
                 newWorkbook.Close( SaveChanges: false );
                 Marshal.ReleaseComObject( newWorkbook );
+                // gescheitert: Zwischendatei erst nach dem Schließen entfernen ( vorher hält Excel sie )
+                if ( !gespeichert )
+                    ExcelOleDb.DeleteQuiet( zwischen );
             }   // Ende: neue Mappe schließen
+            ExcelOleDb.CommitTarget( zwischen, newFileTarget, funktion );
             return ( true );
 
         }   // end: WriteStringsToNewTarget

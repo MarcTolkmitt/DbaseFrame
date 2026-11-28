@@ -62,7 +62,9 @@ namespace DbaseFrame
         ///           ein beschädigtes Blatt-XML wird ohne Meldung nur bis zur Bruchstelle gelesen;
         ///           Punkt l: keine MessageBox mehr aus der Bibliothek: keine Daten → InvalidOperationException
         ///           ( CheckHasData ), vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true
-        ///           ( PrepareTarget ), sonst IOException; Rückgabe false heißt nur noch „Dialog abgebrochen“
+        ///           ( PrepareTarget ), sonst IOException; Rückgabe false heißt nur noch „Dialog abgebrochen“;
+        ///           Befund H: geschrieben wird in eine Zwischendatei, die alte Datei erst danach ersetzt ( CommitTarget ),
+        ///           bei einem Fehler bleibt sie unverändert ( vorher vor dem Schreiben gelöscht )
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -346,33 +348,85 @@ namespace DbaseFrame
         }   // Ende: void CheckHasData
 
         /// <summary>
-        /// Bereitet die Zieldatei vor dem Schreiben vor ( 28.11.26, Punkt l: ersetzt die Rückfrage per MessageBox in
-        /// allen drei Klassen ). Eine vorhandene Datei wird nur gelöscht, wenn 'ersetzen' gilt: im Speichern-Dialog
-        /// bestätigt ( Windows fragt dort selbst, OverwritePrompt ) oder vom Aufrufer mit overwrite: true freigegeben.
-        /// Sonst Ausnahme, die Datei bleibt unberührt.
+        /// Prüft die Zieldatei vor dem Schreiben und liefert die Zwischendatei, in die geschrieben wird ( 28.11.26,
+        /// Punkt l und Befund H: ersetzt die Rückfrage per MessageBox und das Löschen vor dem Schreiben in allen drei
+        /// Klassen ). Eine vorhandene Datei darf nur ersetzt werden, wenn 'ersetzen' gilt: im Speichern-Dialog bestätigt
+        /// ( Windows fragt dort selbst, OverwritePrompt ) oder vom Aufrufer mit overwrite: true freigegeben. Sie wird hier
+        /// nicht angerührt, nur geprüft, ob sie sich ersetzen lässt; ersetzt wird sie erst nach gelungenem Schreiben
+        /// ( CommitTarget ). So bleibt bei jedem Fehler beim Schreiben die alte Datei erhalten.
         /// </summary>
-        /// <param name="datei">voller Name der Zieldatei</param>
-        /// <param name="ersetzen">true = eine vorhandene Datei darf gelöscht werden</param>
+        /// <param name="datei">Name der Zieldatei</param>
+        /// <param name="ersetzen">true = eine vorhandene Datei darf ersetzt werden</param>
         /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
-        /// <exception cref="IOException">Datei vorhanden und nicht freigegeben, oder sie lässt sich nicht löschen</exception>
-        internal static void PrepareTarget( string datei, bool ersetzen, string funktion )
+        /// <returns>Name der Zwischendatei im selben Ordner, mit derselben Endung ( das Format hängt an der Endung )</returns>
+        /// <exception cref="IOException">Datei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen
+        /// ( geöffnet, schreibgeschützt )</exception>
+        internal static string PrepareTarget( string datei, bool ersetzen, string funktion )
         {
-            if ( !File.Exists( datei ) )
-                return;
-            if ( !ersetzen )
-                throw new IOException( funktion + ": Die Zieldatei gibt es schon: " + datei
-                    + " ( zum Ersetzen overwrite: true übergeben oder einen anderen Namen wählen ). Nichts geschrieben." );
-            try
-            {   // vorhandene Datei löschen
-                File.Delete( datei );
-            }   // Ende: vorhandene Datei löschen
-            catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
-            {   // gesperrt oder schreibgeschützt: verständlich melden
-                throw new IOException( funktion + ": Die vorhandene Zieldatei lässt sich nicht ersetzen: " + datei
-                    + " ( in einem anderen Programm geöffnet oder schreibgeschützt? ). Nichts geschrieben.", fehler );
-            }   // Ende: gesperrt oder schreibgeschützt
+            if ( File.Exists( datei ) )
+            {   // vorhandene Zieldatei
+                if ( !ersetzen )
+                    throw new IOException( funktion + ": Die Zieldatei gibt es schon: " + datei
+                        + " ( zum Ersetzen overwrite: true übergeben oder einen anderen Namen wählen ). Nichts geschrieben." );
+                try
+                {   // ersetzbar? exklusiv zum Schreiben öffnen und gleich schließen, Inhalt bleibt
+                    using ( FileStream probe = new FileStream( datei, FileMode.Open, FileAccess.ReadWrite, FileShare.None ) )
+                    {   // nur öffnen
+                    }   // Ende: nur öffnen
+                }   // Ende: ersetzbar?
+                catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
+                {   // gesperrt oder schreibgeschützt: verständlich melden
+                    throw new IOException( funktion + ": Die vorhandene Zieldatei lässt sich nicht ersetzen: " + datei
+                        + " ( in einem anderen Programm geöffnet oder schreibgeschützt? ). Nichts geschrieben.", fehler );
+                }   // Ende: gesperrt oder schreibgeschützt
+            }   // Ende: vorhandene Zieldatei
 
-        }   // Ende: void PrepareTarget
+            string ordner = Path.GetDirectoryName( datei ) ?? "";
+            string name = Path.GetFileNameWithoutExtension( datei ) + ".~dbf" + Guid.NewGuid( ).ToString( "N" ).Substring( 0, 8 )
+                + Path.GetExtension( datei );
+            return ( Path.Combine( ordner, name ) );
+
+        }   // Ende: string PrepareTarget
+
+        /// <summary>
+        /// Ersetzt nach gelungenem Schreiben die Zieldatei durch die Zwischendatei ( 28.11.26, Befund H ).
+        /// Scheitert das, wird die Zwischendatei entfernt und die alte Zieldatei bleibt unverändert.
+        /// </summary>
+        /// <param name="zwischen">die fertig geschriebene Zwischendatei ( PrepareTarget )</param>
+        /// <param name="datei">Name der Zieldatei</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
+        /// <exception cref="IOException">Zieldatei ließ sich nicht ersetzen</exception>
+        internal static void CommitTarget( string zwischen, string datei, string funktion )
+        {
+            try
+            {   // ersetzen bzw. umbenennen
+                File.Move( zwischen, datei, true );
+            }   // Ende: ersetzen bzw. umbenennen
+            catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
+            {   // aufräumen, alte Datei bleibt
+                DeleteQuiet( zwischen );
+                throw new IOException( funktion + ": Die Zieldatei ließ sich nach dem Schreiben nicht ersetzen: " + datei
+                    + " ( inzwischen in einem anderen Programm geöffnet? ). Sie ist unverändert.", fehler );
+            }   // Ende: aufräumen, alte Datei bleibt
+
+        }   // Ende: void CommitTarget
+
+        /// <summary>
+        /// Entfernt eine Zwischendatei nach einem Fehler; ein Fehler dabei überdeckt nicht den eigentlichen.
+        /// </summary>
+        /// <param name="datei">die Zwischendatei</param>
+        internal static void DeleteQuiet( string datei )
+        {
+            try
+            {   // entfernen, falls vorhanden
+                if ( File.Exists( datei ) )
+                    File.Delete( datei );
+            }   // Ende: entfernen, falls vorhanden
+            catch ( Exception )
+            {   // bleibt liegen; die eigentliche Meldung ist wichtiger
+            }   // Ende: bleibt liegen
+
+        }   // Ende: void DeleteQuiet
 
         // --------------------------------------------     the routines
 
@@ -797,14 +851,15 @@ namespace DbaseFrame
         /// Intern data list double will be written into a new
         /// Excel file. If not given a name a dialog will query for it.
         /// Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist
-        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ).
+        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ). Ersetzt wird erst nach gelungenem
+        /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name der neuen Tabelle</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
         /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
-        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
@@ -814,37 +869,48 @@ namespace DbaseFrame
             // ohne Namen per Dialog; abgebrochen: nichts schreiben
             if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
                 return ( false );
-            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite'
-            PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelOleDb.WriteListDoubleToNewTarget" );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite';
+            // geschrieben wird in eine Zwischendatei, die alte Datei wird erst danach ersetzt ( 28.11.26, Befund H )
+            const string funktion = "ExcelOleDb.WriteListDoubleToNewTarget";
+            string zwischen = PrepareTarget( newFileTarget, perDialog || overwrite, funktion );
 
             // craft the 'CREATE TABLE' and 'INSERT INTO'; Spaltennamen bei useHeader aus der gelesenen
             // Kopfzeile ( 27.11.26: vorher immer 0, 1, 2, ... )
             int columns =  valuesDouble[0].Length;
             string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersDouble, useHeader, columns ), "DOUBLE",
                 out string commandInsert );
-            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
-            {
-                connection.Open();
-                // create the table
-                OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                // Verbindung offen lassen ( 27.11.26, gemessen ): Schließen und Wiederöffnen zwischen CREATE TABLE und
-                // INSERT ließ den ACE-Treiber die Zahlen als Text schreiben ( "1,5" statt 1.5 )
-                foreach ( double[] row in valuesDouble )
+            try
+            {   // in die Zwischendatei schreiben
+                using ( OleDbConnection connection = new OleDbConnection( conStringStart + zwischen + conStringEnd + withHeader ) )
                 {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
-
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-                        command.Parameters.Add( $"@{pos}", OleDbType.Double ).Value = row[ pos ];
-
+                    connection.Open();
+                    // create the table
+                    OleDbCommand command = new OleDbCommand( commandCreate, connection );
                     command.ExecuteNonQuery();
+                    // Verbindung offen lassen ( 27.11.26, gemessen ): Schließen und Wiederöffnen zwischen CREATE TABLE und
+                    // INSERT ließ den ACE-Treiber die Zahlen als Text schreiben ( "1,5" statt 1.5 )
+                    foreach ( double[] row in valuesDouble )
+                    {
+                        command.CommandText = commandInsert;
+                        command.Parameters.Clear();
+
+                        for ( int pos = 0; pos < row.Length; pos++ )
+                            //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                            command.Parameters.Add( $"@{pos}", OleDbType.Double ).Value = row[ pos ];
+
+                        command.ExecuteNonQuery();
+                    }
+
+                    connection.Close();
+
                 }
-
-                connection.Close();
-
-            }
+            }   // Ende: in die Zwischendatei schreiben
+            catch
+            {   // gescheitert: Zwischendatei weg, alte Zieldatei unberührt
+                DeleteQuiet( zwischen );
+                throw;
+            }   // Ende: gescheitert
+            CommitTarget( zwischen, newFileTarget, funktion );
             return ( true );
 
         }   // end: WriteListDoubleToNewTarget
@@ -853,7 +919,8 @@ namespace DbaseFrame
         /// Intern data list string will be written into a new
         /// Excel file. If not given a name a dialog will query for it.
         /// Eine vorhandene Zieldatei wird nur ersetzt, wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist
-        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ).
+        /// ( 28.11.26, ohne MessageBox aus der Bibliothek ). Ersetzt wird erst nach gelungenem
+        /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
         /// <param name="newTableName">Name der neuen Tabelle</param>
@@ -861,7 +928,7 @@ namespace DbaseFrame
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
         /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
         /// <exception cref="ArgumentException">ein Text ist länger als 'maxTextLength'</exception>
-        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen</exception>
+        /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
@@ -873,8 +940,10 @@ namespace DbaseFrame
             // ohne Namen per Dialog; abgebrochen: nichts schreiben
             if ( !ChooseTarget( ref newFileTarget, !perDialog ) )
                 return ( false );
-            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite'
-            PrepareTarget( newFileTarget, perDialog || overwrite, "ExcelOleDb.WriteListStringToNewTarget" );
+            // vorhandene Datei: im Dialog hat Windows schon gefragt, sonst entscheidet 'overwrite';
+            // geschrieben wird in eine Zwischendatei, die alte Datei wird erst danach ersetzt ( 28.11.26, Befund H )
+            const string funktion = "ExcelOleDb.WriteListStringToNewTarget";
+            string zwischen = PrepareTarget( newFileTarget, perDialog || overwrite, funktion );
 
             // craft the 'CREATE TABLE' and 'INSERT INTO'
             // Spalten der Texte ( 27.11.26: vorher aus valuesDouble, falsch bzw. Absturz ohne gelesene Zahlen );
@@ -882,27 +951,36 @@ namespace DbaseFrame
             int columns =  valuesString[0].Length;
             string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersString, useHeader, columns ), "VARCHAR",
                 out string commandInsert );
-            using ( OleDbConnection connection = new OleDbConnection( targetConnectionString ) )
-            {
-                connection.Open();
-                // create the table
-                OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                command.ExecuteNonQuery();
-                // Verbindung offen lassen wie in WriteListDoubleToNewTarget ( 27.11.26 )
-                foreach ( string[] row in valuesString )
+            try
+            {   // in die Zwischendatei schreiben
+                using ( OleDbConnection connection = new OleDbConnection( conStringStart + zwischen + conStringEnd + withHeader ) )
                 {
-                    command.CommandText = commandInsert;
-                    command.Parameters.Clear();
-
-                    for ( int pos = 0; pos < row.Length; pos++ )
-                        //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
-                        command.Parameters.Add( $"@{pos}", OleDbType.VarChar ).Value = row[ pos ];
-
+                    connection.Open();
+                    // create the table
+                    OleDbCommand command = new OleDbCommand( commandCreate, connection );
                     command.ExecuteNonQuery();
-                }
+                    // Verbindung offen lassen wie in WriteListDoubleToNewTarget ( 27.11.26 )
+                    foreach ( string[] row in valuesString )
+                    {
+                        command.CommandText = commandInsert;
+                        command.Parameters.Clear();
 
-                connection.Close();
-            }
+                        for ( int pos = 0; pos < row.Length; pos++ )
+                            //command.Parameters.AddWithValue( $"@{pos}", row[ pos ] );
+                            command.Parameters.Add( $"@{pos}", OleDbType.VarChar ).Value = row[ pos ];
+
+                        command.ExecuteNonQuery();
+                    }
+
+                    connection.Close();
+                }
+            }   // Ende: in die Zwischendatei schreiben
+            catch
+            {   // gescheitert: Zwischendatei weg, alte Zieldatei unberührt
+                DeleteQuiet( zwischen );
+                throw;
+            }   // Ende: gescheitert
+            CommitTarget( zwischen, newFileTarget, funktion );
             return ( true );
 
         }   // end: WriteListStringToNewTarget
