@@ -64,7 +64,9 @@ namespace DbaseFrame
         ///           ( CheckHasData ), vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true
         ///           ( PrepareTarget ), sonst IOException; Rückgabe false heißt nur noch „Dialog abgebrochen“;
         ///           Befund H: geschrieben wird in eine Zwischendatei, die alte Datei erst danach ersetzt ( CommitTarget ),
-        ///           bei einem Fehler bleibt sie unverändert ( vorher vor dem Schreiben gelöscht )
+        ///           bei einem Fehler bleibt sie unverändert ( vorher vor dem Schreiben gelöscht );
+        ///           Rückblick: Ordner ohne Schreibrecht → verständliche IOException ( PrepareTarget legt probeweise an );
+        ///           Tabellenname vor dem Dialog geprüft ( CheckTableName, Regeln gemessen ), CREATE TABLE übersetzt
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -384,9 +386,81 @@ namespace DbaseFrame
             string ordner = Path.GetDirectoryName( datei ) ?? "";
             string name = Path.GetFileNameWithoutExtension( datei ) + ".~dbf" + Guid.NewGuid( ).ToString( "N" ).Substring( 0, 8 )
                 + Path.GetExtension( datei );
-            return ( Path.Combine( ordner, name ) );
+            string zwischen = Path.Combine( ordner, name );
+            try
+            {   // darf im Ordner angelegt werden? Probe unter dem Namen der Zwischendatei, gleich wieder entfernt
+                // ( 28.11.26 gemessen: sonst meldet der ACE-Treiber nur "kann die Datei '' nicht öffnen" )
+                using ( FileStream probe = new FileStream( zwischen, FileMode.CreateNew, FileAccess.Write ) )
+                {   // nur anlegen
+                }   // Ende: nur anlegen
+                File.Delete( zwischen );
+            }   // Ende: darf im Ordner angelegt werden?
+            catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
+            {   // Ordner fehlt oder keine Schreibrechte
+                DeleteQuiet( zwischen );
+                throw new IOException( funktion + ": Im Ordner '" + Path.GetFullPath( ordner == "" ? "." : ordner )
+                    + "' lässt sich keine Datei anlegen ( Ordner fehlt oder keine Schreibrechte? ). Nichts geschrieben.", fehler );
+            }   // Ende: Ordner fehlt oder keine Schreibrechte
+            return ( zwischen );
 
         }   // Ende: string PrepareTarget
+
+        /// <summary>
+        /// Zeichen, die der ACE-Treiber in einem neuen Excel-Tabellennamen ablehnt ( gemessen 28.11.26 ).
+        /// </summary>
+        internal const string forbiddenTableCharsExcel = "!`[]:$";
+
+        /// <summary>
+        /// Zeichen, die der ACE-Treiber in einem neuen Access-Tabellennamen ablehnt ( gemessen 28.11.26 ).
+        /// </summary>
+        internal const string forbiddenTableCharsAccess = ".!`[]";
+
+        /// <summary>
+        /// Prüft den Namen einer neuen Tabelle vor Dialog und Datei ( 28.11.26, gemessen mit beiden ACE-Treibern; vorher
+        /// kam nur "Syntaxfehler in CREATE TABLE" oder "ist kein gültiger Name" ): nicht leer, kein führendes
+        /// Leerzeichen, höchstens 64 Zeichen, keines der verbotenen Zeichen.
+        /// </summary>
+        /// <param name="name">Tabellenname</param>
+        /// <param name="verboten">forbiddenTableCharsExcel bzw. forbiddenTableCharsAccess</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
+        /// <exception cref="ArgumentException">Name ungültig, mit Grund</exception>
+        internal static void CheckTableName( string name, string verboten, string funktion )
+        {
+            string grund = "";
+            if ( string.IsNullOrWhiteSpace( name ) )
+                grund = "leer";
+            else if ( name[ 0 ] == ' ' )
+                grund = "beginnt mit einem Leerzeichen";
+            else if ( name.Length > 64 )
+                grund = name.Length + " Zeichen, höchstens 64";
+            else if ( name.IndexOfAny( verboten.ToCharArray( ) ) >= 0 )
+                grund = "enthält eines der Zeichen " + string.Join( " ", verboten.ToCharArray( ) );
+            if ( grund != "" )
+                throw new ArgumentException( funktion + ": Der Tabellenname '" + name + "' ist ungültig ( " + grund
+                    + " ). Nichts geschrieben.", "newTableName" );
+
+        }   // Ende: void CheckTableName
+
+        /// <summary>
+        /// Führt CREATE TABLE aus und übersetzt einen Fehler des Treibers ( 28.11.26, Rückfallebene zu CheckTableName ).
+        /// </summary>
+        /// <param name="command">Befehl mit CREATE TABLE, Verbindung offen</param>
+        /// <param name="tabelle">Tabellenname für die Meldung</param>
+        /// <param name="funktion">aufrufende Klasse und Funktion für die Meldung</param>
+        /// <exception cref="InvalidOperationException">Tabelle ließ sich nicht anlegen</exception>
+        internal static void CreateTable( OleDbCommand command, string tabelle, string funktion )
+        {
+            try
+            {   // anlegen
+                command.ExecuteNonQuery( );
+            }   // Ende: anlegen
+            catch ( OleDbException fehler )
+            {   // verständlich melden
+                throw new InvalidOperationException( funktion + ": Die Tabelle '" + tabelle + "' ließ sich nicht anlegen ( Treiber: "
+                    + fehler.Message + " ). Nichts geschrieben.", fehler );
+            }   // Ende: verständlich melden
+
+        }   // Ende: void CreateTable
 
         /// <summary>
         /// Ersetzt nach gelungenem Schreiben die Zieldatei durch die Zwischendatei ( 28.11.26, Befund H ).
@@ -855,15 +929,16 @@ namespace DbaseFrame
         /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Name der neuen Tabelle</param>
+        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
             CheckHasData( valuesDouble, "ExcelOleDb.WriteListDoubleToNewTarget", "ReadDoubleList" );
+            CheckTableName( newTableName, forbiddenTableCharsExcel, "ExcelOleDb.WriteListDoubleToNewTarget" );
 
             bool perDialog = ( newFileTarget == "" );
             // ohne Namen per Dialog; abgebrochen: nichts schreiben
@@ -886,7 +961,7 @@ namespace DbaseFrame
                     connection.Open();
                     // create the table
                     OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                    command.ExecuteNonQuery();
+                    CreateTable( command, newTableName, funktion );
                     // Verbindung offen lassen ( 27.11.26, gemessen ): Schließen und Wiederöffnen zwischen CREATE TABLE und
                     // INSERT ließ den ACE-Treiber die Zahlen als Text schreiben ( "1,5" statt 1.5 )
                     foreach ( double[] row in valuesDouble )
@@ -923,17 +998,18 @@ namespace DbaseFrame
         /// Schreiben ( über eine Zwischendatei ); bei einem Fehler bleibt die alte Datei unverändert.
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Name der neuen Tabelle</param>
+        /// <param name="newTableName">Name der neuen Tabelle: höchstens 64 Zeichen, ohne ! ` [ ] : $, kein führendes Leerzeichen.
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
-        /// <exception cref="ArgumentException">ein Text ist länger als 'maxTextLength'</exception>
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>
+        /// <exception cref="ArgumentException">ein Text ist länger als 'maxTextLength', oder der Tabellenname ist ungültig</exception>
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
             // die Zieldatei blieb mit leerer Tabelle zurück; 28.11.26: keine Daten → Ausnahme statt MessageBox )
             CheckHasData( valuesString, "ExcelOleDb.WriteListStringToNewTarget", "ReadStringList" );
+            CheckTableName( newTableName, forbiddenTableCharsExcel, "ExcelOleDb.WriteListStringToNewTarget" );
             CheckTextLength( valuesString, "ExcelOleDb.WriteListStringToNewTarget" );
 
             bool perDialog = ( newFileTarget == "" );
@@ -958,7 +1034,7 @@ namespace DbaseFrame
                     connection.Open();
                     // create the table
                     OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                    command.ExecuteNonQuery();
+                    CreateTable( command, newTableName, funktion );
                     // Verbindung offen lassen wie in WriteListDoubleToNewTarget ( 27.11.26 )
                     foreach ( string[] row in valuesString )
                     {

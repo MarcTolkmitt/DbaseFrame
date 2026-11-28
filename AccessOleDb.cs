@@ -51,7 +51,8 @@ namespace DbaseFrame
         ///           Punkt l: keine MessageBox mehr aus der Bibliothek: keine Daten → InvalidOperationException,
         ///           vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true, sonst IOException
         ///           ( ExcelOleDb.CheckHasData / PrepareTarget ); Rückgabe false heißt nur noch „Dialog abgebrochen“;
-        ///           Befund H: neue Datei als Zwischendatei, die alte erst danach ersetzt ( ExcelOleDb.CommitTarget )
+        ///           Befund H: neue Datei als Zwischendatei, die alte erst danach ersetzt ( ExcelOleDb.CommitTarget );
+        ///           Tabellenname vor dem Dialog geprüft ( ExcelOleDb.CheckTableName ), CREATE TABLE übersetzt
         /// </summary>
         Version version = new Version( "1.0.7" );
         /*
@@ -444,7 +445,7 @@ namespace DbaseFrame
         /// zwischen CREATE und INSERT offen ( Lehre aus ExcelOleDb ). Spaltennamen aus 'headers' ( ExcelOleDb.ColumnNamesForWrite ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Tabellenname</param>
+        /// <param name="newTableName">Tabellenname: höchstens 64 Zeichen, ohne . ! ` [ ], kein führendes Leerzeichen</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen</param>
         /// <param name="funktion">aufrufende Funktion für Meldungen</param>
         /// <param name="columns">Spaltenzahl der Daten</param>
@@ -473,7 +474,7 @@ namespace DbaseFrame
                 {
                     connection.Open();
                     OleDbCommand command = new OleDbCommand( commandCreate, connection );
-                    command.ExecuteNonQuery();
+                    ExcelOleDb.CreateTable( command, newTableName, funktion );
                     foreach ( object[] zeile in zeilen )
                     {   // je Zeile
                         command.CommandText = commandInsert;
@@ -502,16 +503,17 @@ namespace DbaseFrame
         /// wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist, und erst nach gelungenem Schreiben ( 28.11.26 ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Tabellenname</param>
+        /// <param name="newTableName">Tabellenname: höchstens 64 Zeichen, ohne . ! ` [ ], kein führendes Leerzeichen</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben</exception>
+        /// <exception cref="InvalidOperationException">keine Zahlen zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             const string funktion = "AccessOleDb.WriteListDoubleToNewTarget";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
             ExcelOleDb.CheckHasData( valuesDouble, funktion, "ReadDoubleList" );
+            ExcelOleDb.CheckTableName( newTableName, ExcelOleDb.forbiddenTableCharsAccess, funktion );
             List<object[]> zeilen = new List<object[]>( );
             foreach ( double[] zeile in valuesDouble )
                 zeilen.Add( zeile.Cast<object>( ).ToArray( ) );
@@ -527,17 +529,18 @@ namespace DbaseFrame
         /// ersetzt, wenn sie im Dialog bestätigt oder 'overwrite' gesetzt ist, und erst nach gelungenem Schreiben ( 28.11.26 ).
         /// </summary>
         /// <param name="newFileTarget">Zieldatei; leer = Dialog</param>
-        /// <param name="newTableName">Tabellenname</param>
+        /// <param name="newTableName">Tabellenname: höchstens 64 Zeichen, ohne . ! ` [ ], kein führendes Leerzeichen</param>
         /// <param name="overwrite">true = eine vorhandene Zieldatei ohne Rückfrage ersetzen ( nur mit Namen von Bedeutung )</param>
         /// <returns>true = geschrieben; false = Dialog abgebrochen, nichts geschrieben</returns>
-        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben</exception>
-        /// <exception cref="ArgumentException">ein Text ist länger als 'ExcelOleDb.maxTextLength'</exception>
+        /// <exception cref="InvalidOperationException">keine Texte zum Schreiben, oder die Tabelle ließ sich nicht anlegen</exception>
+        /// <exception cref="ArgumentException">ein Text ist länger als 'ExcelOleDb.maxTextLength', oder der Tabellenname ist ungültig</exception>
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             const string funktion = "AccessOleDb.WriteListStringToNewTarget";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( wie ExcelOleDb; 28.11.26: Ausnahme statt MessageBox )
             ExcelOleDb.CheckHasData( valuesString, funktion, "ReadStringList" );
+            ExcelOleDb.CheckTableName( newTableName, ExcelOleDb.forbiddenTableCharsAccess, funktion );
             ExcelOleDb.CheckTextLength( valuesString, funktion );
             List<object[]> zeilen = new List<object[]>( );
             foreach ( string[] zeile in valuesString )
