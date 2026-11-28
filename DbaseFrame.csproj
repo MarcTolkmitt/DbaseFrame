@@ -21,7 +21,7 @@
          im Code liefert sie PackageInfo.Version. Gepflegt wie die Klassennummern: bei Änderungen erhöhen,
          höchstens einmal am Tag ( Paketnummer ab 1.0.7; eine schon veröffentlichte Nummer
          braucht für Änderungen eine neue, auch am selben Tag ). -->
-    <Version>1.0.8</Version>
+    <Version>1.0.9</Version>
     <AssemblyTitle>DbaseFrame</AssemblyTitle>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>

@@ -1,4 +1,4 @@
-available on nuget.org as package '**DbaseFrame**' ( this README describes package version **1.0.8**, state 27.11.2026; see chapter 5 for the current behaviour ).
+available on nuget.org as package '**DbaseFrame**' ( this README describes package version **1.0.8**, state 27.11.2026, **Update 28.11.2026: 1.0.9**; see chapter 5 for the current behaviour ).
 
 
 
@@ -214,6 +214,8 @@ In writing the data to an excel workbook the strength of the interop classes can
 **Known limit of the ACE driver:** it guesses the type of a column from the first 8 rows. Text appearing later in a number column comes in as empty ( 0 ). For strict checking of every cell use 'ExcelInterop'.
 
 **Demo program:** menus 'OleDb Excel', 'Interop Excel' ( 14 items ) and 'OleDb Access'; every error is shown in the window and the program goes on. Test files: 'Parable_Demo.xlsx', 'StringGolfer.xlsx' ( texts ), 'Defekt_Test.xlsx' ( damaged ), 'Access_Test.accdb'.
+
+**Update 28.11.2026 ( package 1.0.9 ):** all three classes offer 'ReadColumnNames( int numTable )': the column names of a table or sheet without reading the data, the same names a read puts into 'headers'. A number that does not exist and an empty sheet give an error message. 'AccessOleDb.ColumnNameDummy( )' did nothing and is marked obsolete. 'ExcelOleDb' now counts only worksheets ( no named ranges like the print area or an autofilter ); its numbers follow the alphabetical order of the ACE driver, while 'ExcelInterop' counts in the order of the sheets in Excel. Versions: 'ExcelInterop' 1.0.9, 'ExcelOleDb' 1.0.15, 'AccessOleDb' 1.0.7. New test files: 'Blaetter_Test.xlsx' ( several sheets, empty sheet, header only, duplicate headers, mixed column ), 'Leer_Test.xlsx' and damaged files ( 'Null_Test.xlsx', 'KeinZip_Test.xlsx', 'ZipOhneMappe_Test.xlsx', 'XmlKaputt_Test.xlsx' ).
 
 ### <u>14.Donations</u>
 

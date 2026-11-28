@@ -34,7 +34,7 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 22.10.24
-        /// last edit: 27.11.26
+        /// last edit: 28.11.26
         /// 27.11.26: Lesen über OpenSource( ): fehlende Datei → FileNotFoundException ( vorher legte der
         ///           ACE-Treiber stillschweigend eine neue, leere Mappe an ), defekte Datei →
         ///           InvalidDataException mit verständlicher Meldung statt roher OleDbException;
@@ -53,8 +53,12 @@ namespace DbaseFrame
         ///           InvalidDataException; vorher still 0, auch WAHR und "1,5" );
         ///           ReadStringList / ReadDoubleList: Tabelle ohne Datenzeile → InvalidDataException;
         ///           Write…ToNewTarget ohne Schließen/Öffnen zwischen CREATE und INSERT ( sonst Zahlen als Text )
+        /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelInterop ); ReadTableNames, GetTableName
+        ///           und ReadColumnNames zählen nur noch Arbeitsblätter ( SheetTables ), keine benannten Bereiche
+        ///           ( Druckbereich, _xlnm#_FilterDatabase ); Reihenfolge des Treibers ( alphabetisch, nicht wie in Excel );
+        ///           ReadColumnNames meldet ein leeres Blatt ( InvalidDataException, wie ExcelInterop )
         /// </summary>
-        Version version = new Version( "1.0.14" );
+        Version version = new Version( "1.0.15" );
 
         // Connect to the Excel file
         public string conStringStart =
@@ -580,32 +584,15 @@ namespace DbaseFrame
         /// <returns>the number</returns>
         public int ReadTableNames()
         {
-            DataTable? dt = null;
+            // nur Arbeitsblätter ( SheetTables, 28.11.26 ), Zählung gleich in GetTableName und ReadColumnNames
             using ( OleDbConnection conn = OpenSource( ) )
             {
-                dt = 
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
-
+                sheets = SheetTables( conn );
             }   // end: using
 
-            if ( dt != null )
-            {
-                sheets = new string[ dt.Rows.Count ];
-                
-                for ( int i = 0; i < sheets.Length; i++ )
-                {
-                    sheets[ i ] = 
-                        dt.Rows[ i ][ "TABLE_NAME" ].ToString()
-                        ?? string.Empty;
-
-                }
-
-                DialogTablesChoice choice = new DialogTablesChoice( sheets );
-                sheetNumber = choice.index;
-                return( sheetNumber );
-
-            }
-            return( -1 );
+            DialogTablesChoice choice = new DialogTablesChoice( sheets );
+            sheetNumber = choice.index;
+            return( sheetNumber );
 
         }   // end: ReadTableNames
 
@@ -616,22 +603,96 @@ namespace DbaseFrame
         /// <returns>the name or 'string.empty'</returns>
         public string GetTableName( int numTable )
         {
-            DataTable? dt = null;
+            string[] tabellen;
             using ( OleDbConnection conn = OpenSource( ) )
             {
-                dt =
-                    conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null );
-
+                tabellen = SheetTables( conn );
             }   // end: using
 
-            if ( ( dt != null )
-                && ( dt.Rows.Count > numTable ) )
-            {
-                return ( dt.Rows[ numTable ][ "TABLE_NAME" ].ToString() ?? string.Empty );
-            }
+            // 28.11.26: auch negative Nummern abgefangen ( vorher IndexOutOfRangeException )
+            if ( ( numTable >= 0 ) && ( numTable < tabellen.Length ) )
+                return ( tabellen[ numTable ] );
             return( string.Empty );
 
         }   // end: GetTableName
+
+        /// <summary>
+        /// Die Arbeitsblätter der Mappe, wie der ACE-Treiber sie als Tabellen kennt ( "Tabelle1$", "'Mein Blatt$'" ),
+        /// ohne benannte Bereiche ( "Druckbereich", "Tabelle1$_xlnm#_FilterDatabase" ). Reihenfolge des Treibers:
+        /// alphabetisch, nicht die Blattreihenfolge in Excel ( anders als ExcelInterop, 28.11.26 ).
+        /// </summary>
+        /// <param name="conn">geöffnete Verbindung</param>
+        /// <returns>Tabellennamen der Blätter</returns>
+        static string[] SheetTables( OleDbConnection conn )
+        {
+            DataTable dt = conn.GetOleDbSchemaTable( OleDbSchemaGuid.Tables, null ) ?? new DataTable( );
+            List<string> namen = new List<string>( );
+            foreach ( DataRow zeile in dt.Rows )
+            {   // Blätter enden auf $ ( bei Sonderzeichen in Hochkommas: '…$' )
+                string name = zeile[ "TABLE_NAME" ]?.ToString( ) ?? string.Empty;
+                if ( name.TrimEnd( '\'' ).EndsWith( "$" ) )
+                    namen.Add( name );
+            }   // Ende: Blätter enden auf $
+            return ( namen.ToArray( ) );
+
+        }   // Ende: string[] SheetTables
+
+        /// <summary>
+        /// Spaltennamen einer Tabelle, ohne Daten zu lesen ( 28.11.26, wie AccessOleDb und ExcelInterop ).
+        /// Zählung der Blätter wie ReadTableNames / GetTableName ( SheetTables: alphabetisch ). Bei useHeader die
+        /// Kopfzeile, sonst F1, F2, ...
+        /// ( dieselben Namen, die ein Read…List in 'headers' liefert ).
+        /// </summary>
+        /// <param name="numTable">Nummer der Tabelle, 0 = erste</param>
+        /// <returns>die Spaltennamen</returns>
+        /// <exception cref="ArgumentOutOfRangeException">kein Blatt mit dieser Nummer</exception>
+        /// <exception cref="InvalidDataException">leeres Blatt ( wie ExcelInterop )</exception>
+        public string[] ReadColumnNames( int numTable )
+        {
+            using ( OleDbConnection conn = OpenSource( ) )
+            {
+                string[] tabellen = SheetTables( conn );
+                if ( ( numTable < 0 ) || ( numTable >= tabellen.Length ) )
+                    throw new ArgumentOutOfRangeException( nameof( numTable ),
+                        $"ExcelOleDb: Blatt Nr. {numTable} gibt es nicht ( {tabellen.Length} Blätter in {sourceFile} )." );
+                string tabelle = tabellen[ numTable ];
+
+                string[] namen;
+                using ( OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{tabelle}]", conn ) )
+                using ( OleDbDataReader reader = command.ExecuteReader( CommandBehavior.SchemaOnly ) )
+                {   // nur das Schema, keine Datenzeile
+                    namen = ColumnNames( reader );
+                }   // Ende: nur das Schema, keine Datenzeile
+
+                /* Leeres Blatt ( 28.11.26, wie ExcelInterop: die Daten haben zu passen ):
+                 *  - der Treiber meldet dann eine einzige Spalte "F1" ohne Wert ( Annahme, mit Leer_Test.xlsx zu prüfen )
+                 *  - nur in diesem Fall die Werte ansehen; eine Spalte mit Werten oder mit echter Kopfzeile ist kein leeres Blatt
+                */
+                if ( ( namen.Length == 1 ) && ( namen[ 0 ] == "F1" ) && !HasValue( conn, tabelle ) )
+                    throw new InvalidDataException( $"ExcelOleDb: Blatt {tabelle} in {sourceFile} enthält keine Daten." );
+                return ( namen );
+            }   // Ende: using
+
+        }   // Ende: string[] ReadColumnNames
+
+        /// <summary>
+        /// Enthält die erste Spalte der Tabelle irgendeinen Wert ( für die Erkennung eines leeren Blatts )?
+        /// </summary>
+        /// <param name="conn">geöffnete Verbindung</param>
+        /// <param name="tabelle">Tabellenname</param>
+        /// <returns>true, sobald ein Wert gefunden ist</returns>
+        static bool HasValue( OleDbConnection conn, string tabelle )
+        {
+            using ( OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{tabelle}]", conn ) )
+            using ( OleDbDataReader reader = command.ExecuteReader( ) )
+            {   // bis zum ersten Wert
+                while ( reader.Read( ) )
+                    if ( !reader.IsDBNull( 0 ) )
+                        return ( true );
+            }   // Ende: bis zum ersten Wert
+            return ( false );
+
+        }   // Ende: bool HasValue
 
         /// <summary>
         /// Target file name for the writing is chosen. Produces the

@@ -37,7 +37,7 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 30.06.25
-        /// last edit: 27.11.26
+        /// last edit: 28.11.26
         /// Now since Visual Studio Pro i can use the Interop library
         /// 27.11.26: Lesefunktionen repariert ( ReadTypes, ReadStrings, ReadDoubles, je auch für einen Bereich:
         ///           Blatt, Value2, Index ab 0, X = Spalte / Y = Zeile, Bereichsprüfung ), Kopfzeile in 'headers'
@@ -63,8 +63,9 @@ namespace DbaseFrame
         ///           Write…ToNewTarget schreiben bei useHeader die Kopfzeile mit ( WriteHeaderRow, vorher fehlte sie );
         ///           ganz gesperrte Datei → lastError "gesperrt" ( vorher "beschädigt, kein Excel-Format" );
         ///           ReadStrings / ReadDoubles: Blatt nur mit Kopfzeile → Fehlermeldung ( CheckDataRows )
+        /// 28.11.26: ReadColumnNames( numTable ) neu ( wie AccessOleDb und ExcelOleDb ), Blattwahl bleibt unverändert
         /// </summary>
-        Version version = new Version( "1.0.8" );
+        Version version = new Version( "1.0.9" );
 
         Microsoft.Office.Interop.Excel.Application excelApp = null!;
         Microsoft.Office.Interop.Excel.Workbook workbook = null!;
@@ -588,6 +589,39 @@ namespace DbaseFrame
             return ( string.Empty );
 
         }   // end: GetSheetName
+
+        /// <summary>
+        /// Spaltennamen eines Blatts, ohne die Daten zu übernehmen ( 28.11.26, wie AccessOleDb und ExcelOleDb ).
+        /// Bei useHeader die erste Zeile des Datenrechtecks, sonst die Spaltennamen des Blatts ( z. B. B, C, ... );
+        /// dieselben Namen, die ReadStrings / ReadDoubles in 'headers' liefern. Die Blattwahl ( 'sheetNumber' )
+        /// bleibt unverändert.
+        /// </summary>
+        /// <param name="numTable">Nummer des Blatts, 0 = erstes</param>
+        /// <returns>die Spaltennamen</returns>
+        /// <exception cref="InvalidOperationException">keine Mappe geöffnet</exception>
+        /// <exception cref="ArgumentOutOfRangeException">kein Blatt mit dieser Nummer</exception>
+        public string[] ReadColumnNames( int numTable )
+        {
+            if ( !workbookOpen )
+                throw new InvalidOperationException( "ExcelInterop.ReadColumnNames: keine Mappe geöffnet ( " + lastError + " )." );
+            if ( ( numTable < 0 ) || ( numTable >= workbook.Worksheets.Count ) )
+                throw new ArgumentOutOfRangeException( nameof( numTable ),
+                    $"ExcelInterop: Blatt Nr. {numTable} gibt es nicht ( {workbook.Worksheets.Count} Blätter in {fileName} )." );
+
+            int altesBlatt = sheetNumber;
+            try
+            {   // Blatt vorübergehend wählen, Datenrechteck wie beim Lesen
+                sheetNumber = numTable;
+                object?[,] werte = ReadUsedRangeValues( out int firstCol, out int firstRow );
+                CheckDataRectangle( werte, firstRow, firstCol );
+                return ( ReadHeaders( werte, firstCol ) );
+            }   // Ende: Blatt vorübergehend wählen, Datenrechteck wie beim Lesen
+            finally
+            {   // Blattwahl des Aufrufers wiederherstellen
+                sheetNumber = altesBlatt;
+            }   // Ende: Blattwahl des Aufrufers wiederherstellen
+
+        }   // Ende: string[] ReadColumnNames
 
         /// <summary>
         /// Sets the name of a chosen sheet.

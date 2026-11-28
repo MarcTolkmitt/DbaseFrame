@@ -34,7 +34,7 @@ namespace DbaseFrame
     {
         /// <summary>
         /// created on: 05.11.24
-        /// last edit: 27.11.26
+        /// last edit: 28.11.26
         /// 27.11.26: Lesen wie ExcelOleDb abgesichert: Dialog abgebrochen → keine Datei ( lastError, vorher
         ///           stillschweigend Access_Test.accdb ); OpenSource( ) meldet fehlende, gesperrte ( vorher Absturz im
         ///           ACE-Treiber ), beschädigte Datei verständlich; ohne gewählte Tabelle klare Meldung; Tabellenwahl
@@ -45,8 +45,11 @@ namespace DbaseFrame
         ///           vorher scheiterte jeder Aufruf ), Write…ToNewTarget liefern bool, ChooseTarget mit Abbruch, Spaltennamen
         ///           aus 'headers', Spaltenzahl der Texte richtig, Textlänge vorher geprüft, Verbindung bleibt offen;
         ///           ohne System.Data.Odbc ( wurde nicht mehr gebraucht, Paket entfernt )
+        /// 28.11.26: ReadColumnNames( numTable ) ersetzt ColumnNameDummy ( las nur die Spalten der Schematabelle und
+        ///           verwarf sie; bleibt als leere [Obsolete]-Methode eine Version lang stehen ); gleich in ExcelOleDb
+        ///           und ExcelInterop
         /// </summary>
-        Version version = new Version( "1.0.6" );
+        Version version = new Version( "1.0.7" );
         /*
         string connectionString = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};" +
                                  "Dbq=C:\\Path\\To\\Your\\Database.accdb;" +
@@ -341,26 +344,40 @@ namespace DbaseFrame
 
         }   // end: GetTableName
 
-        public void ColumnNameDummy()
+        /// <summary>
+        /// Spaltennamen einer Tabelle, ohne Daten zu lesen ( ersetzt ColumnNameDummy, 28.11.26 ).
+        /// Zählung der Tabellen wie ReadTableNames / GetTableName ( ohne Systemtabellen ).
+        /// Die Namen sind dieselben, die ein Read…List in 'headers' liefert.
+        /// </summary>
+        /// <param name="numTable">Nummer der Tabelle, 0 = erste</param>
+        /// <returns>die Spaltennamen</returns>
+        /// <exception cref="ArgumentOutOfRangeException">keine Tabelle mit dieser Nummer</exception>
+        public string[] ReadColumnNames( int numTable )
         {
-            using ( OleDbConnection conn = new OleDbConnection( sourceConnectionString ) )
+            using ( OleDbConnection conn = OpenSource( ) )
             {
-                conn.Open();
-                
-                // Get the schema table for columns
-                
-                DataTable schemaTable = 
-                    conn.GetSchema("Columns")
-                    ?? new DataTable();
+                string[] tabellen = UserTables( conn );
+                if ( ( numTable < 0 ) || ( numTable >= tabellen.Length ) )
+                    throw new ArgumentOutOfRangeException( nameof( numTable ),
+                        $"AccessOleDb: Tabelle Nr. {numTable} gibt es nicht ( {tabellen.Length} Tabellen in {sourceConnectionFile} )." );
 
-                // Iterate through the schema table rows to access column headers (field names)
-                foreach ( DataColumn column in schemaTable.Columns )
-                {
-                    string columnName = column.ColumnName;
-                    // Use the column name as needed
-                }
-            }
-        }
+                using ( OleDbCommand command = new OleDbCommand( $"SELECT * FROM [{tabellen[ numTable ]}]", conn ) )
+                using ( OleDbDataReader reader = command.ExecuteReader( CommandBehavior.SchemaOnly ) )
+                {   // nur das Schema, keine Datenzeile
+                    return ( ColumnNames( reader ) );
+                }   // Ende: nur das Schema, keine Datenzeile
+            }   // Ende: using
+
+        }   // Ende: string[] ReadColumnNames
+
+        /// <summary>
+        /// Veraltet ( 28.11.26 ): tat nichts ( las die Spalten der Schematabelle und verwarf sie ). Bleibt eine Version lang
+        /// stehen, damit Aufrufer aus Paket 1.0.7 weiter übersetzen; stattdessen ReadColumnNames( numTable ).
+        /// </summary>
+        [Obsolete( "ColumnNameDummy tat nichts und entfällt in einer späteren Version: ReadColumnNames( int numTable ) verwenden." )]
+        public void ColumnNameDummy( )
+        {
+        }   // Ende: void ColumnNameDummy
 
         /// <summary>
         /// Target file name for the writing is chosen. Produces the
