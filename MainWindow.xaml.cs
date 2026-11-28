@@ -41,6 +41,7 @@ namespace DbaseFrame
         /// 28.11.26: Punkt l: fehlende Daten meldet die Bibliothek als Ausnahme ( Anzeige über SafeDo ), false heißt
         ///           beim Schreiben nur noch „abgebrochen“; Menüpunkte „column names of every table / sheet“ in allen
         ///           drei Menüs ( ReadColumnNames, ShowColumnNames ); Schreiben zeigt den echten Namen ( writtenTableName )
+        ///           28.11.26 ( 2 ): Tabellen- und Blattschleifen zählen bis GetTableCount / GetSheetCount ( vorher bis zum leeren Namen )
         /// </summary>
         Version version = new Version( "1.0.7" );
 
@@ -194,13 +195,16 @@ namespace DbaseFrame
         /// Hilfsfunktion für die drei Menüpunkte ReadColumnNames ( 28.11.26 ): zeigt für jede Tabelle bzw. jedes Blatt die
         /// Spaltennamen. Ein Fehler einer Tabelle ( z. B. leeres Blatt ) steht in ihrer Zeile, die übrigen folgen trotzdem.
         /// </summary>
-        /// <param name="tabelle">Name der Tabelle Nr. i, leer = keine weitere ( GetTableName / GetSheetName )</param>
+        /// <param name="anzahl">Anzahl der Tabellen ( GetTableCount / GetSheetCount, seit 28.11.26 )</param>
+        /// <param name="tabelle">Name der Tabelle Nr. i ( GetTableName / GetSheetName )</param>
         /// <param name="spalten">Spaltennamen der Tabelle Nr. i ( ReadColumnNames )</param>
-        void ShowColumnNames( Func<int, string> tabelle, Func<int, string[]> spalten )
+        void ShowColumnNames( Func<int> anzahl, Func<int, string> tabelle, Func<int, string[]> spalten )
         {
+            // 28.11.26: bis zur Anzahl statt bis zum leeren Namen ( GetTableName / GetSheetName werfen jetzt bei ungültiger Nummer )
             int nummer = 0;
-            for ( string name = tabelle( 0 ); name != ""; name = tabelle( ++nummer ) )
+            for ( int ende = anzahl( ); nummer < ende; nummer++ )
             {   // je Tabelle
+                string name = tabelle( nummer );
                 string text;
                 try
                 {   // Spaltennamen
@@ -350,7 +354,7 @@ namespace DbaseFrame
         {
             ExcelDo( x =>
             {
-                for ( int i = 0; i < 10; i++ )
+                for ( int i = 0; i < x.GetTableCount( ); i++ )   // 28.11.26: bis zur Anzahl ( vorher 10, leere Namen )
                 {
                     string result = x.GetTableName( i );
                     Display( $"Table {i}: {result}" );
@@ -367,7 +371,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemReadColumnNames_Click( object sender, RoutedEventArgs e )
         {
-            ExcelDo( x => ShowColumnNames( x.GetTableName, x.ReadColumnNames ) );
+            ExcelDo( x => ShowColumnNames( x.GetTableCount, x.GetTableName, x.ReadColumnNames ) );
 
         }   // end: _mItemReadColumnNames_Click
 
@@ -526,7 +530,7 @@ namespace DbaseFrame
         {
             AccessDo( x =>
             {
-                for ( int i = 0; i < 20; i++ )
+                for ( int i = 0; i < x.GetTableCount( ); i++ )   // 28.11.26: bis zur Anzahl ( vorher 20, leere Namen )
                 {
                     string result = x.GetTableName( i );
                     Display( $"Table {i}: {result}" );
@@ -543,7 +547,7 @@ namespace DbaseFrame
         /// <param name="e">send parameter from it</param>
         private void _mItemAccessReadColumnNames_Click( object sender, RoutedEventArgs e )
         {
-            AccessDo( x => ShowColumnNames( x.GetTableName, x.ReadColumnNames ) );
+            AccessDo( x => ShowColumnNames( x.GetTableCount, x.GetTableName, x.ReadColumnNames ) );
 
         }   // end: _mItemAccessReadColumnNames_Click
 
@@ -755,7 +759,7 @@ namespace DbaseFrame
         {   // alle Blattnamen, 0-basiert
             InteropDo( x =>
             {
-                for ( int nummer = 0; x.GetSheetName( nummer ) != ""; nummer++ )
+                for ( int nummer = 0; nummer < x.GetSheetCount( ); nummer++ )   // 28.11.26: bis zur Anzahl
                     Display( $"Blatt {nummer}: {x.GetSheetName( nummer )}" );
             } );
 
@@ -763,7 +767,7 @@ namespace DbaseFrame
 
         private void _mItemInteropColumnNames_Click( object sender, RoutedEventArgs e )
         {   // Spaltennamen jedes Blatts ( ReadColumnNames, 28.11.26 ), Blattwahl bleibt unverändert
-            InteropDo( x => ShowColumnNames( x.GetSheetName, x.ReadColumnNames ) );
+            InteropDo( x => ShowColumnNames( x.GetSheetCount, x.GetSheetName, x.ReadColumnNames ) );
 
         }   // end: _mItemInteropColumnNames_Click
 

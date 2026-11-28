@@ -56,6 +56,7 @@ namespace DbaseFrame
         ///           Befund H: neue Datei als Zwischendatei, die alte erst danach ersetzt ( ExcelOleDb.CommitTarget );
         ///           Tabellenname vor dem Dialog geprüft ( ExcelOleDb.CheckTableName ), CREATE TABLE übersetzt;
         ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
+        ///           28.11.26 ( 2 ): GetTableName wirft bei ungültiger Nummer ArgumentOutOfRangeException ( vorher leer ), neu GetTableCount
         /// </summary>
         Version version = new Version( "1.0.7" );
         /*
@@ -386,8 +387,9 @@ namespace DbaseFrame
         /// <summary>
         /// Direct query for the table name ( Zählung wie ReadTableNames, ohne Systemtabellen ).
         /// </summary>
-        /// <param name="numTable">number of the sheet</param>
-        /// <returns>the name or 'string.empty'</returns>
+        /// <param name="numTable">number of the table, 0 = first; valid up to GetTableCount( ) - 1</param>
+        /// <returns>the name</returns>
+        /// <exception cref="ArgumentOutOfRangeException">no table with this number ( since 1.0.9; before: empty text )</exception>
         public string GetTableName( int numTable )
         {
             string[] tabellen;
@@ -396,11 +398,26 @@ namespace DbaseFrame
                 tabellen = UserTables( conn );
             }   // end: using
 
-            if ( ( numTable >= 0 ) && ( numTable < tabellen.Length ) )
-                return ( tabellen[ numTable ] );
-            return ( string.Empty );
+            // 28.11.26: ungültige Nummer → Ausnahme wie ReadColumnNames ( Entscheidung „Angleichen“; vorher leerer Text )
+            if ( ( numTable < 0 ) || ( numTable >= tabellen.Length ) )
+                throw new ArgumentOutOfRangeException( nameof( numTable ), numTable,
+                    $"AccessOleDb.GetTableName: keine Tabelle Nr. {numTable} ( vorhanden: {tabellen.Length}, gezählt ab 0 )." );
+            return ( tabellen[ numTable ] );
 
         }   // end: GetTableName
+
+        /// <summary>
+        /// Number of user tables in the source database, counted like GetTableName / ReadColumnNames.
+        /// </summary>
+        /// <returns>the number of tables</returns>
+        public int GetTableCount( )
+        {
+            using ( OleDbConnection conn = OpenSource( ) )
+            {
+                return ( UserTables( conn ).Length );
+            }   // end: using
+
+        }   // end: int GetTableCount
 
         /// <summary>
         /// Spaltennamen einer Tabelle, ohne Daten zu lesen ( ersetzt ColumnNameDummy, 28.11.26 ).

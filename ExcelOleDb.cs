@@ -70,6 +70,7 @@ namespace DbaseFrame
         ///           Rückblick: Ordner ohne Schreibrecht → verständliche IOException ( PrepareTarget legt probeweise an );
         ///           Tabellenname vor dem Dialog geprüft ( CheckTableName, Regeln gemessen ), CREATE TABLE übersetzt;
         ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
+        ///           28.11.26 ( 2 ): GetTableName wirft bei ungültiger Nummer ArgumentOutOfRangeException ( vorher leer ), neu GetTableCount
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -851,10 +852,11 @@ namespace DbaseFrame
         }   // end: ReadTableNames
 
         /// <summary>
-        /// Direct query for the table name.
+        /// Direct query for the table name ( worksheets only, alphabetical like the driver delivers them ).
         /// </summary>
-        /// <param name="numTable">number of the sheet</param>
-        /// <returns>the name or 'string.empty'</returns>
+        /// <param name="numTable">number of the sheet, 0 = first; valid up to GetTableCount( ) - 1</param>
+        /// <returns>the name, e.g. "table0$"</returns>
+        /// <exception cref="ArgumentOutOfRangeException">no table with this number ( since 1.0.9; before: empty text )</exception>
         public string GetTableName( int numTable )
         {
             string[] tabellen;
@@ -863,12 +865,26 @@ namespace DbaseFrame
                 tabellen = SheetTables( conn );
             }   // end: using
 
-            // 28.11.26: auch negative Nummern abgefangen ( vorher IndexOutOfRangeException )
-            if ( ( numTable >= 0 ) && ( numTable < tabellen.Length ) )
-                return ( tabellen[ numTable ] );
-            return( string.Empty );
+            // 28.11.26: ungültige Nummer → Ausnahme wie ReadColumnNames ( Entscheidung „Angleichen“; vorher leerer Text )
+            if ( ( numTable < 0 ) || ( numTable >= tabellen.Length ) )
+                throw new ArgumentOutOfRangeException( nameof( numTable ), numTable,
+                    $"ExcelOleDb.GetTableName: keine Tabelle Nr. {numTable} ( vorhanden: {tabellen.Length}, gezählt ab 0 )." );
+            return ( tabellen[ numTable ] );
 
         }   // end: GetTableName
+
+        /// <summary>
+        /// Number of tables ( worksheets ) in the source file, counted like GetTableName / ReadColumnNames.
+        /// </summary>
+        /// <returns>the number of tables</returns>
+        public int GetTableCount( )
+        {
+            using ( OleDbConnection conn = OpenSource( ) )
+            {
+                return ( SheetTables( conn ).Length );
+            }   // end: using
+
+        }   // end: int GetTableCount
 
         /// <summary>
         /// Die Arbeitsblätter der Mappe, wie der ACE-Treiber sie als Tabellen kennt ( "Tabelle1$", "'Mein Blatt$'" ),

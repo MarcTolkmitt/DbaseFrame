@@ -76,6 +76,7 @@ namespace DbaseFrame
         ///           netstandard2.0-Build ohne Dateidialoge; für Logs ( GreenWave_Plugin ) neu: OpenOrCreateWorkbook,
         ///           SelectOrCreateSheet ( Blatt je Routine, Kopfzeile ), InsertRowTop ( neueste Zeile oben, Datum als
         ///           Excel-Datum ); die Mappe darf dafür bis zum Ende offen bleiben, ExcelInteropQuit erst zum Schluss
+        ///           28.11.26 ( 2 ): GetSheetName wirft bei ungültiger Nummer ArgumentOutOfRangeException ( vorher leer ), neu GetSheetCount; ohne geöffnete Mappe InvalidOperationException ( CheckOpen ) statt NullReferenceException
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -591,6 +592,7 @@ namespace DbaseFrame
         /// </summary>
         Excel.Worksheet SelectedSheet( )
         {
+            CheckOpen( "Blatt wählen" );   // 28.11.26: ohne Mappe klare Meldung statt NullReferenceException
             if ( ( sheetNumber >= 0 ) && ( sheetNumber < workbook.Worksheets.Count ) )
                 return ( (Excel.Worksheet)workbook.Worksheets[ sheetNumber + 1 ] );   // Excel zählt ab 1
             return ( (Excel.Worksheet)workbook.ActiveSheet );
@@ -604,6 +606,7 @@ namespace DbaseFrame
         /// <returns>true, wenn es das Blatt gibt; sonst bleibt die Wahl unverändert</returns>
         public bool SelectSheet( int numTable )
         {
+            CheckOpen( "SelectSheet" );
             if ( ( numTable < 0 ) || ( numTable >= workbook.Worksheets.Count ) )
                 return ( false );
             sheetNumber = numTable;
@@ -619,6 +622,7 @@ namespace DbaseFrame
         public int ReadSheetNames( )
         {
             // die Daten auslesen ( nur Arbeitsblätter, wie SelectedSheet )
+            CheckOpen( "ReadSheetNames" );
             Excel.Sheets sheetsList = workbook.Worksheets;
 
             if ( sheetsList.Count > 0 )
@@ -648,20 +652,50 @@ namespace DbaseFrame
         /// <summary>
         /// Direct query for the sheet name.
         /// </summary>
-        /// <param name="numTable">number of the sheet, 0 = erstes</param>
-        /// <returns>the name or 'string.empty'</returns>
+        /// <param name="numTable">number of the sheet, 0 = erstes; valid up to GetSheetCount( ) - 1</param>
+        /// <returns>the name</returns>
+        /// <exception cref="ArgumentOutOfRangeException">no sheet with this number ( since 1.0.9; before: empty text )</exception>
+        /// <exception cref="InvalidOperationException">no workbook open</exception>
         public string GetSheetName( int numTable )
         {
             // Excel zählt ab 1 ( 27.11.26: vorher Sheets[ 0 ], "Ungültiger Index" bzw. falsches Blatt )
+            CheckOpen( "GetSheetName" );
             Excel.Sheets sheetsList = workbook.Worksheets;
 
-            if ( ( numTable >= 0 ) && ( numTable < sheetsList.Count ) )
-            {
-                return ( ( (Excel.Worksheet)sheetsList[ numTable + 1 ] ).Name );
-            }
-            return ( string.Empty );
+            // 28.11.26: ungültige Nummer → Ausnahme wie ReadColumnNames ( Entscheidung „Angleichen“; vorher leerer Text )
+            if ( ( numTable < 0 ) || ( numTable >= sheetsList.Count ) )
+                throw new ArgumentOutOfRangeException( nameof( numTable ), numTable,
+                    $"ExcelInterop.GetSheetName: kein Blatt Nr. {numTable} ( vorhanden: {sheetsList.Count}, gezählt ab 0 )." );
+            return ( ( (Excel.Worksheet)sheetsList[ numTable + 1 ] ).Name );
 
         }   // end: GetSheetName
+
+        /// <summary>
+        /// Number of worksheets in the open workbook, counted like GetSheetName / SelectSheet.
+        /// </summary>
+        /// <returns>the number of sheets</returns>
+        /// <exception cref="InvalidOperationException">no workbook open</exception>
+        public int GetSheetCount( )
+        {
+            CheckOpen( "GetSheetCount" );
+            return ( workbook.Worksheets.Count );
+
+        }   // end: int GetSheetCount
+
+        /// <summary>
+        /// Prüft, ob eine Mappe geöffnet ist ( 28.11.26, Entscheidung „Prüfen und klar melden“ ): sonst verständliche
+        /// Ausnahme mit dem Grund aus lastError statt einer NullReferenceException.
+        /// </summary>
+        /// <param name="funktion">aufrufende Funktion für die Meldung</param>
+        /// <exception cref="InvalidOperationException">keine Mappe geöffnet</exception>
+        void CheckOpen( string funktion )
+        {
+            if ( workbookOpen && ( workbook != null ) )
+                return;
+            throw new InvalidOperationException( $"ExcelInterop.{funktion}: keine Mappe geöffnet"
+                + ( string.IsNullOrEmpty( lastError ) ? "." : $" ( {lastError} )." ) );
+
+        }   // Ende: void CheckOpen
 
         /// <summary>
         /// Spaltennamen eines Blatts, ohne die Daten zu übernehmen ( 28.11.26, wie AccessOleDb und ExcelOleDb ).
@@ -704,6 +738,7 @@ namespace DbaseFrame
         public void SetSheetName( int numTable, string newName )
         {
             // Excel zählt ab 1
+            CheckOpen( "SetSheetName" );
             Excel.Sheets sheetsList = workbook.Worksheets;
             if ( ( numTable >= 0 ) && ( numTable < sheetsList.Count ) )
             {
@@ -722,6 +757,7 @@ namespace DbaseFrame
         public int NewSheet( string sheetName = "" )
         {
             // ans Ende anhängen ( 27.11.26: vorher vor dem aktiven Blatt, Rückgabe ab 1, leerer Name = Fehler )
+            CheckOpen( "NewSheet" );
             Excel.Sheets sheetsList = workbook.Worksheets;
             workbookChanged = true;
             Excel.Worksheet newSheet =
@@ -820,6 +856,7 @@ namespace DbaseFrame
         public int SelectOrCreateSheet( string sheetName, string[]? header = null )
         {
             CheckSheetName( sheetName, "SelectOrCreateSheet" );
+            CheckOpen( "SelectOrCreateSheet" );
             Excel.Sheets sheetsList = workbook.Worksheets;
             for ( int nr = 1; nr <= sheetsList.Count; nr++ )
             {   // vorhandenes Blatt suchen ( Excel unterscheidet Groß-/Kleinschreibung bei Blattnamen nicht )
