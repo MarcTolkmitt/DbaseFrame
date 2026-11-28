@@ -21,10 +21,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Data.OleDb;
-using System.Windows.Controls;
 using System.IO;
 using System.Net;
-using System.Windows.Media.Animation;
 using System.Configuration;
 using System.Data;
 
@@ -235,6 +233,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameLoad( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.OpenFileDialog();
             dialog.FileName = fileName; // Default file name
@@ -253,6 +252,9 @@ namespace DbaseFrame
                 return ( true );
 
             }
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameLoad
@@ -264,6 +266,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameSave( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
             dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
@@ -283,6 +286,9 @@ namespace DbaseFrame
                 return ( true );
 
             }
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameLoad
@@ -529,7 +535,15 @@ namespace DbaseFrame
         {
             try
             {   // ersetzen bzw. umbenennen
+#if NETSTANDARD2_0
+                // netstandard2.0 ( 28.11.26 ) kennt File.Move( a, b, true ) nicht: vorhandenes Ziel per File.Replace
+                if ( File.Exists( datei ) )
+                    File.Replace( zwischen, datei, null );
+                else
+                    File.Move( zwischen, datei );
+#else
                 File.Move( zwischen, datei, true );
+#endif
             }   // Ende: ersetzen bzw. umbenennen
             catch ( Exception fehler ) when ( ( fehler is IOException ) || ( fehler is UnauthorizedAccessException ) )
             {   // aufräumen, alte Datei bleibt
@@ -826,8 +840,12 @@ namespace DbaseFrame
                 sheets = SheetTables( conn );
             }   // end: using
 
+#if NETSTANDARD2_0
+            sheetNumber = -1;   // netstandard2.0 ( 28.11.26 ): kein Auswahldialog; Tabelle über sheetNumber bzw. SelectSheet wählen
+#else
             DialogTablesChoice choice = new DialogTablesChoice( sheets );
             sheetNumber = choice.index;
+#endif
             return( sheetNumber );
 
         }   // end: ReadTableNames

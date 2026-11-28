@@ -23,12 +23,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Controls;
-using System.Windows.Media.Animation;
 using Excel = Microsoft.Office.Interop.Excel;
 
 namespace DbaseFrame
@@ -269,6 +266,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameLoad( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.OpenFileDialog();
             dialog.FileName = fileName; // Default file name
@@ -287,6 +285,9 @@ namespace DbaseFrame
                 return ( true );
 
             }
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameLoad
@@ -298,6 +299,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameSave( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
             dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
@@ -317,6 +319,9 @@ namespace DbaseFrame
                 return ( true );
 
             }
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameSave
@@ -624,8 +629,12 @@ namespace DbaseFrame
                 }
                 sheets = locSheets.ToArray();
 
+#if NETSTANDARD2_0
+                sheetNumber = -1;   // netstandard2.0 ( 28.11.26 ): kein Auswahldialog; Tabelle über sheetNumber bzw. SelectSheet wählen
+#else
                 DialogTablesChoice choice = new DialogTablesChoice( sheets );
                 sheetNumber = choice.index;
+#endif
                 return ( sheetNumber );
 
             }
@@ -1044,7 +1053,7 @@ namespace DbaseFrame
                     + ": keine Zahlen vorhanden ( zuerst ReadDoubles fehlerfrei ausführen )." );
             for ( int x = 0; x < matrix.GetLength( 0 ); x++ )
                 for ( int y = 0; y < matrix.GetLength( 1 ); y++ )
-                    if ( !double.IsFinite( matrix[ x, y ] ) )
+                    if ( double.IsNaN( matrix[ x, y ] ) || double.IsInfinity( matrix[ x, y ] ) )   // statt !IsFinite: netstandard2.0
                         throw new ArgumentException( "ExcelInterop." + funktion + ": Wert an ( " + x + ", " + y
                             + " ) ist " + matrix[ x, y ] + ", Excel kann nur endliche Zahlen speichern." );
 
@@ -1073,7 +1082,7 @@ namespace DbaseFrame
             if ( feld == null )
                 throw new InvalidOperationException( "ExcelInterop." + funktion + ": keine Zahlen übergeben." );
             for ( int x = 0; x < feld.Length; x++ )
-                if ( !double.IsFinite( feld[ x ] ) )
+                if ( double.IsNaN( feld[ x ] ) || double.IsInfinity( feld[ x ] ) )   // statt !IsFinite: netstandard2.0
                     throw new ArgumentException( "ExcelInterop." + funktion + ": Wert an ( " + x + " ) ist "
                         + feld[ x ] + ", Excel kann nur endliche Zahlen speichern." );
 

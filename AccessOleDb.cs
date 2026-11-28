@@ -23,10 +23,8 @@ using System.Data.OleDb;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Controls;
 
 namespace DbaseFrame
 {
@@ -375,8 +373,12 @@ namespace DbaseFrame
                 sheets = UserTables( conn );
             }   // end: using
 
+#if NETSTANDARD2_0
+            sheetNumber = -1;   // netstandard2.0 ( 28.11.26 ): kein Auswahldialog; Tabelle über sheetNumber bzw. SelectSheet wählen
+#else
             DialogTablesChoice choice = new DialogTablesChoice( sheets );
             sheetNumber = choice.index;
+#endif
             return ( sheetNumber );
 
         }   // end: ReadTableNames
@@ -628,6 +630,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameLoad( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.OpenFileDialog();
             dialog.FileName = fileName; // Default file name
@@ -647,6 +650,9 @@ namespace DbaseFrame
 
             }
             fileName = string.Empty;
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameLoad
@@ -658,6 +664,7 @@ namespace DbaseFrame
         /// <returns></returns>
         public bool DialogFileNameSave( ref string fileName )
         {
+#if !NETSTANDARD2_0
             // Configure open file dialog box
             var dialog = new Microsoft.Win32.SaveFileDialog();
             dialog.OverwritePrompt = true;  // Windows fragt vor dem Ersetzen ( 28.11.26: einzige Rückfrage, Punkt l )
@@ -677,6 +684,9 @@ namespace DbaseFrame
                 return ( true );
 
             }
+#else
+            // netstandard2.0 ( 28.11.26 ): kein Dateidialog, false wie "abgebrochen"; Dateinamen direkt übergeben
+#endif
             return ( false );
 
         }   // end: DialogFileNameLoad

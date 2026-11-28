@@ -1,11 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows7.0</TargetFramework>
+    <!-- 28.11.26: zweites Ziel netstandard2.0 = Kern ohne Oberfläche für ältere Umgebungen ( cTrader net6.0,
+         GreenWave_Plugin ); Demoprogramm, WPF und Dateidialoge nur im net10-Build -->
+    <TargetFrameworks>net10.0-windows7.0;netstandard2.0</TargetFrameworks>
+    <OutputType Condition="'$(TargetFramework)' != 'netstandard2.0'">WinExe</OutputType>
+    <OutputType Condition="'$(TargetFramework)' == 'netstandard2.0'">Library</OutputType>
+    <UseWPF Condition="'$(TargetFramework)' != 'netstandard2.0'">true</UseWPF>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
     <Title>DbaseFrame</Title>
     <Authors>Marc Tolkmitt</Authors>
     <Description>Project to gain usage of Excel- and Access-data with C#. This project serves as example WPF-program and source for the utility classes.</Description>
@@ -44,12 +48,18 @@
     <PackageReference Include="System.Data.OleDb" Version="11.0.0" />
   </ItemGroup>
 
+  <!-- 28.11.26: im netstandard2.0-Build nur die Bibliothek; dynamic ( COM, ADOX ) braucht dort Microsoft.CSharp -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Remove="App.xaml.cs;MainWindow.xaml.cs;DialogTablesChoice.xaml.cs;AssemblyInfo.cs;Message.cs" />
+    <Page Remove="**\*.xaml" />
+    <ApplicationDefinition Remove="App.xaml" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+  </ItemGroup>
+
+  <!-- 28.11.26: ausdrücklich aufgenommen statt Update; mit zwei Zielen fand der Packlauf sie sonst nicht ( NU5030 ) -->
   <ItemGroup>
-    <None Update="Apache.txt">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-    <None Update="README.md">
+    <None Remove="Apache.txt;README.md" />
+    <None Include="Apache.txt;README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
