@@ -73,7 +73,9 @@ namespace DbaseFrame
         ///           oder mit overwrite: true, sonst IOException ( ExcelOleDb.PrepareTarget ); Befund H: geschrieben wird in
         ///           eine Zwischendatei, die alte erst danach ersetzt ( CommitTarget ); Ziel = geöffnete Mappe wird
         ///           abgewiesen ( vorher gelöscht und dann verloren ); COMException beim Schreiben → IOException;
-        ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
+        ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert;
+        ///           ExcelInteropQuit speichert nur noch nach eigener Änderung ( workbookChanged ), vorher jede nicht
+        ///           schreibgeschützte Mappe, auch nach reinem Lesen ( Entscheidung des Nutzers „Verhalten ändern“ )
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -136,6 +138,11 @@ namespace DbaseFrame
         /// </summary>
         public bool readOnly = false;
 
+        // hat diese Instanz die geöffnete Mappe seit dem Öffnen bzw. letzten Speichern verändert? ( 28.11.26 )
+        // ExcelInteropQuit speichert nur dann; vorher speicherte es jede nicht schreibgeschützte Mappe, auch nach
+        // reinem Lesen ( Befund beim Dokumentieren, Entscheidung des Nutzers „Verhalten ändern“ )
+        bool workbookChanged = false;
+
         /// <summary>
         /// Mappe erfolgreich geöffnet?
         /// </summary>
@@ -194,7 +201,9 @@ namespace DbaseFrame
         /// <summary>
         /// Closes the workbook, quits Excel and releases every COM object held by this instance. Without this call
         /// Excel keeps running after the program ends. A second call does nothing.
-        /// Note: the workbook is closed WITH saving its changes, unless it was opened with readOnly = true.
+        /// The workbook is saved on closing only if this instance changed it since opening or the last
+        /// SaveWorkbook / SaveWorkbookAs ( Write…, AppendRow…, CleanSheet, SetSheetName, NewSheet ) and it was not
+        /// opened with readOnly = true. Reading alone never saves ( since package 1.0.9 ).
         /// </summary>
         public void ExcelInteropQuit()
         {
@@ -215,7 +224,8 @@ namespace DbaseFrame
             if (workbook != null)
             {
                 // nur gelesen: nichts speichern, die Datei bleibt unverändert ( 27.11.26: vorher immer gespeichert )
-                workbook.Close(SaveChanges: !readOnly);
+                workbook.Close(SaveChanges: !readOnly && workbookChanged);   // 28.11.26: nur nach eigener Änderung
+                workbookChanged = false;
                 Marshal.ReleaseComObject(workbook);
                 workbook = null!;
             }
@@ -396,6 +406,7 @@ namespace DbaseFrame
         public bool OpenWorkbook()
         {
             workbookOpen = false;
+            workbookChanged = false;
             if ( excelApp == null )
                 return ( false );   // Excel ließ sich nicht starten, Grund steht schon in lastError
             // relativer Name → voller Pfad: Excel löst relative Namen in seinem eigenen Ordner auf ( Dokumente ),
@@ -490,6 +501,7 @@ namespace DbaseFrame
             try
             {
                 workbook.Save();
+                workbookChanged = false;
                 return ( true );
             }
             catch ( COMException comEx )
@@ -540,6 +552,7 @@ namespace DbaseFrame
 
             fileName = newFileName;
             readOnly = false;
+            workbookChanged = false;
             return ( true );
 
         }   // end: SaveWorkbookAs
@@ -553,6 +566,7 @@ namespace DbaseFrame
         {
             // das gewählte Blatt ( 27.11.26: vorher ActiveSheet.Worksheet, diese Eigenschaft gibt es nicht )
             worksheet = SelectedSheet( );
+            workbookChanged = true;
             worksheet.Cells.Clear();
 
         }   // end: CleanSheet
@@ -681,6 +695,7 @@ namespace DbaseFrame
             Excel.Sheets sheetsList = workbook.Worksheets;
             if ( ( numTable >= 0 ) && ( numTable < sheetsList.Count ) )
             {
+                workbookChanged = true;
                 ( (Excel.Worksheet)sheetsList[ numTable + 1 ] ).Name = newName;
             }
 
@@ -696,6 +711,7 @@ namespace DbaseFrame
         {
             // ans Ende anhängen ( 27.11.26: vorher vor dem aktiven Blatt, Rückgabe ab 1, leerer Name = Fehler )
             Excel.Sheets sheetsList = workbook.Worksheets;
+            workbookChanged = true;
             Excel.Worksheet newSheet =
                 (Excel.Worksheet)sheetsList.Add( After: sheetsList[ sheetsList.Count ] );
             if ( !string.IsNullOrWhiteSpace( sheetName ) )
@@ -1123,6 +1139,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // send the data ( Excel erwartet [ zeile, spalte ], siehe ToExcelOrder )
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesStringArray );
 
         } // end: WriteStrings
@@ -1223,6 +1240,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( dataArray );
 
         } // end: WriteStrings
@@ -1254,6 +1272,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = ToExcelOrder( dataArray );
 
         } // end: AppendRowStringMatrix
@@ -1282,6 +1301,7 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
 
             // ein eindimensionales Feld schreibt Excel als eine Zeile ( keine Umsetzung nötig )
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[xDim1 + yDim1, xDim2 + yDim1].Value2 = dataArray;
 
         } // end: AppendRowStringField
@@ -1394,6 +1414,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( valuesDoubleArray );
 
         } // end: WriteDoubles
@@ -1480,6 +1501,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[ xDim1 + yDim1, xDim2 + yDim2 ].Value2 = ToExcelOrder( dataArray );
 
         } // end: WriteDoubles
@@ -1514,6 +1536,7 @@ namespace DbaseFrame
             string yDim2 = endRow.ToString();
 
             // Excel erwartet [ zeile, spalte ], siehe ToExcelOrder
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[xDim1 + yDim1, xDim2 + yDim2].Value2 = ToExcelOrder( dataArray );
 
         } // end: AppendRowDoublesMatrix
@@ -1545,6 +1568,7 @@ namespace DbaseFrame
             string yDim1 = startRow.ToString();
 
             // ein eindimensionales Feld schreibt Excel als eine Zeile ( keine Umsetzung nötig )
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
             worksheet.Range[xDim1 + yDim1, xDim2 + yDim1].Value2 = dataArray;
 
         } // end: AppendRowDoublesField
