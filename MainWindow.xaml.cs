@@ -39,7 +39,8 @@ namespace DbaseFrame
         ///           OleDb-Schreiben zeigt das Ergebnis an ( geschrieben / nichts geschrieben );
         ///           Access-Dialog abgebrochen → nichts offen; Access-Schreibmenüs gefüllt ( vorher leer )
         /// 28.11.26: Punkt l: fehlende Daten meldet die Bibliothek als Ausnahme ( Anzeige über SafeDo ), false heißt
-        ///           beim Schreiben nur noch „abgebrochen“
+        ///           beim Schreiben nur noch „abgebrochen“; Menüpunkte „column names of every table / sheet“ in allen
+        ///           drei Menüs ( ReadColumnNames, ShowColumnNames ); Schreiben zeigt den echten Namen ( writtenTableName )
         /// </summary>
         Version version = new Version( "1.0.7" );
 
@@ -188,6 +189,33 @@ namespace DbaseFrame
         }   // Ende: void SafeDo
 
         /// <summary>
+        /// Hilfsfunktion für die drei Menüpunkte ReadColumnNames ( 28.11.26 ): zeigt für jede Tabelle bzw. jedes Blatt die
+        /// Spaltennamen. Ein Fehler einer Tabelle ( z. B. leeres Blatt ) steht in ihrer Zeile, die übrigen folgen trotzdem.
+        /// </summary>
+        /// <param name="tabelle">Name der Tabelle Nr. i, leer = keine weitere ( GetTableName / GetSheetName )</param>
+        /// <param name="spalten">Spaltennamen der Tabelle Nr. i ( ReadColumnNames )</param>
+        void ShowColumnNames( Func<int, string> tabelle, Func<int, string[]> spalten )
+        {
+            int nummer = 0;
+            for ( string name = tabelle( 0 ); name != ""; name = tabelle( ++nummer ) )
+            {   // je Tabelle
+                string text;
+                try
+                {   // Spaltennamen
+                    text = string.Join( " | ", spalten( nummer ) );
+                }   // Ende: Spaltennamen
+                catch ( Exception ex )
+                {   // Fehler dieser Tabelle anzeigen, weiter mit der nächsten
+                    text = "Fehler: " + ex.Message;
+                }   // Ende: Fehler dieser Tabelle anzeigen
+                Display( $"Tabelle {nummer} '{name}': {text}" );
+            }   // Ende: je Tabelle
+            if ( nummer == 0 )
+                Display( "keine Tabelle gefunden" );
+
+        }   // Ende: void ShowColumnNames
+
+        /// <summary>
         /// Hilfsfunktion: führt einen Menüpunkt mit der geöffneten Excel-Datei ( OleDb ) aus und zeigt Fehler an
         /// ( wie InteropDo ); ohne geöffnete Datei ein Hinweis statt "Object reference not set".
         /// </summary>
@@ -331,6 +359,17 @@ namespace DbaseFrame
         }   // end: _mItemReadTableNumber_Click
 
         /// <summary>
+        /// handler function -> _mItemReadColumnNames_Click ( 28.11.26 ): Spaltennamen jeder Tabelle ( ReadColumnNames )
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemReadColumnNames_Click( object sender, RoutedEventArgs e )
+        {
+            ExcelDo( x => ShowColumnNames( x.GetTableName, x.ReadColumnNames ) );
+
+        }   // end: _mItemReadColumnNames_Click
+
+        /// <summary>
         /// handler function -> _mItemExcelListTypesArray_Click
         /// </summary>
         /// <param name="sender">triggering UI-element</param>
@@ -407,7 +446,7 @@ namespace DbaseFrame
             ExcelDo( x =>
             {
                 Display( x.WriteListDoubleToNewTarget( )
-                    ? "OleDb Excel: Zahlen in eine neue Datei geschrieben"
+                    ? $"OleDb Excel: Zahlen in eine neue Datei geschrieben ( Tabelle '{x.writtenTableName}' )"
                     : "OleDb Excel: abgebrochen, nichts geschrieben" );
             } );
 
@@ -423,7 +462,7 @@ namespace DbaseFrame
             ExcelDo( x =>
             {
                 Display( x.WriteListStringToNewTarget( )
-                    ? "OleDb Excel: Texte in eine neue Datei geschrieben"
+                    ? $"OleDb Excel: Texte in eine neue Datei geschrieben ( Tabelle '{x.writtenTableName}' )"
                     : "OleDb Excel: abgebrochen, nichts geschrieben" );
             } );
 
@@ -494,6 +533,17 @@ namespace DbaseFrame
             } );
 
         }
+
+        /// <summary>
+        /// handler function -> _mItemAccessReadColumnNames_Click ( 28.11.26 ): Spaltennamen jeder Tabelle ( ReadColumnNames )
+        /// </summary>
+        /// <param name="sender">triggering UI-element</param>
+        /// <param name="e">send parameter from it</param>
+        private void _mItemAccessReadColumnNames_Click( object sender, RoutedEventArgs e )
+        {
+            AccessDo( x => ShowColumnNames( x.GetTableName, x.ReadColumnNames ) );
+
+        }   // end: _mItemAccessReadColumnNames_Click
 
         /// <summary>
         /// handler function -> _mItemAccessListTypesArray_Click
@@ -572,7 +622,7 @@ namespace DbaseFrame
             AccessDo( x =>
             {
                 Display( x.WriteListDoubleToNewTarget( )
-                    ? "OleDb Access: Zahlen in eine neue Datei geschrieben"
+                    ? $"OleDb Access: Zahlen in eine neue Datei geschrieben ( Tabelle '{x.writtenTableName}' )"
                     : "OleDb Access: abgebrochen, nichts geschrieben" );
             } );
 
@@ -588,7 +638,7 @@ namespace DbaseFrame
             AccessDo( x =>
             {
                 Display( x.WriteListStringToNewTarget( )
-                    ? "OleDb Access: Texte in eine neue Datei geschrieben"
+                    ? $"OleDb Access: Texte in eine neue Datei geschrieben ( Tabelle '{x.writtenTableName}' )"
                     : "OleDb Access: abgebrochen, nichts geschrieben" );
             } );
 
@@ -709,6 +759,12 @@ namespace DbaseFrame
 
         }   // end: _mItemInteropSheetNames_Click
 
+        private void _mItemInteropColumnNames_Click( object sender, RoutedEventArgs e )
+        {   // Spaltennamen jedes Blatts ( ReadColumnNames, 28.11.26 ), Blattwahl bleibt unverändert
+            InteropDo( x => ShowColumnNames( x.GetSheetName, x.ReadColumnNames ) );
+
+        }   // end: _mItemInteropColumnNames_Click
+
         private void _mItemInteropChooseSheet_Click( object sender, RoutedEventArgs e )
         {   // Blatt im Dialog wählen
             InteropDo( x =>
@@ -772,7 +828,7 @@ namespace DbaseFrame
                     return;
                 }   // ende: noch nichts gelesen
                 Display( x.WriteDoublesToNewTarget( )
-                    ? "Interop: Zahlen in eine neue Datei geschrieben"
+                    ? $"Interop: Zahlen in eine neue Datei geschrieben ( Blatt '{x.writtenTableName}' )"
                     : "Interop: abgebrochen, nichts geschrieben" );
             } );
 
@@ -788,7 +844,7 @@ namespace DbaseFrame
                     return;
                 }   // ende: noch nichts gelesen
                 Display( x.WriteStringsToNewTarget( )
-                    ? "Interop: Texte in eine neue Datei geschrieben"
+                    ? $"Interop: Texte in eine neue Datei geschrieben ( Blatt '{x.writtenTableName}' )"
                     : "Interop: abgebrochen, nichts geschrieben" );
             } );
 

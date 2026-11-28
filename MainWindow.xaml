@@ -22,6 +22,8 @@
                     Header="read the tables" Click="_mItemReadTables_Click"/>
                 <MenuItem x:Name="_mItemReadTableNumber"
                     Header="read table names by number" Click="_mItemReadTableNumber_Click"/>
+                <MenuItem x:Name="_mItemReadColumnNames"
+                    Header="read the column names of every table" Click="_mItemReadColumnNames_Click"/>
                 <Separator/>
                 <MenuItem x:Name="_mItemExcelListTypesArray"
                     Header="read the chosen table as List of types"
@@ -47,6 +49,8 @@
                 <Separator/>
                 <MenuItem x:Name="_mItemInteropSheetNames"
                     Header="show the sheet names" Click="_mItemInteropSheetNames_Click"/>
+                <MenuItem x:Name="_mItemInteropColumnNames"
+                    Header="show the column names of every sheet" Click="_mItemInteropColumnNames_Click"/>
                 <MenuItem x:Name="_mItemInteropChooseSheet"
                     Header="choose the sheet by dialog" Click="_mItemInteropChooseSheet_Click"/>
                 <Separator/>
@@ -79,6 +83,8 @@
                     Header="read the tables" Click="_mItemAccessReadTables_Click"/>
                 <MenuItem x:Name="_mItemAccessReadTableNumber"
                     Header="read table names by number" Click="_mItemAccessReadTableNumber_Click"/>
+                <MenuItem x:Name="_mItemAccessReadColumnNames"
+                    Header="read the column names of every table" Click="_mItemAccessReadColumnNames_Click"/>
                 <Separator/>
                 <MenuItem x:Name="_mItemAccessListTypesArray" 
                     Header="read chosen table as List of Types"
