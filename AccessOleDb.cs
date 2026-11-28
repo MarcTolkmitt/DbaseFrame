@@ -372,7 +372,7 @@ namespace DbaseFrame
 
         /// <summary>
         /// Veraltet ( 28.11.26 ): tat nichts ( las die Spalten der Schematabelle und verwarf sie ). Bleibt eine Version lang
-        /// stehen, damit Aufrufer aus Paket 1.0.7 weiter übersetzen; stattdessen ReadColumnNames( numTable ).
+        /// stehen, damit Aufrufer aus den Paketen bis 1.0.8 weiter übersetzen; stattdessen ReadColumnNames( numTable ).
         /// </summary>
         [Obsolete( "ColumnNameDummy tat nichts und entfällt in einer späteren Version: ReadColumnNames( int numTable ) verwenden." )]
         public void ColumnNameDummy( )
