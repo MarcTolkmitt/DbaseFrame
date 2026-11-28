@@ -52,7 +52,8 @@ namespace DbaseFrame
         ///           vorhandene Zieldatei nur nach Bestätigung im Dialog oder mit overwrite: true, sonst IOException
         ///           ( ExcelOleDb.CheckHasData / PrepareTarget ); Rückgabe false heißt nur noch „Dialog abgebrochen“;
         ///           Befund H: neue Datei als Zwischendatei, die alte erst danach ersetzt ( ExcelOleDb.CommitTarget );
-        ///           Tabellenname vor dem Dialog geprüft ( ExcelOleDb.CheckTableName ), CREATE TABLE übersetzt
+        ///           Tabellenname vor dem Dialog geprüft ( ExcelOleDb.CheckTableName ), CREATE TABLE übersetzt;
+        ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
         /// </summary>
         Version version = new Version( "1.0.7" );
         /*
@@ -70,6 +71,13 @@ namespace DbaseFrame
         public string targetConnectionFile = "";
         public string targetConnectionOptions = ";";
         public string targetConnectionString = "";
+
+        /// <summary>
+        /// Name der zuletzt geschriebenen Tabelle, so wie GetTableName ihn liefert ( 28.11.26, wie ExcelOleDb ). Der
+        /// Access-Treiber übernimmt den Namen unverändert ( gemessen ). Zu Beginn jedes Schreibens leer, nur nach
+        /// gelungenem Schreiben gesetzt.
+        /// </summary>
+        public string writtenTableName = "";
 
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
@@ -492,6 +500,7 @@ namespace DbaseFrame
                 throw;
             }   // Ende: gescheitert
             ExcelOleDb.CommitTarget( zwischen, newFileTarget, funktion );
+            writtenTableName = newTableName;   // Access übernimmt den Namen unverändert ( gemessen 28.11.26 )
             return ( true );
 
         }   // Ende: bool WriteTable
@@ -512,6 +521,7 @@ namespace DbaseFrame
         {
             const string funktion = "AccessOleDb.WriteListDoubleToNewTarget";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
+            writtenTableName = "";   // ganz oder gar nicht: erst nach gelungenem Schreiben gesetzt ( 28.11.26 )
             ExcelOleDb.CheckHasData( valuesDouble, funktion, "ReadDoubleList" );
             ExcelOleDb.CheckTableName( newTableName, ExcelOleDb.forbiddenTableCharsAccess, funktion );
             List<object[]> zeilen = new List<object[]>( );
@@ -539,6 +549,7 @@ namespace DbaseFrame
         {
             const string funktion = "AccessOleDb.WriteListStringToNewTarget";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( wie ExcelOleDb; 28.11.26: Ausnahme statt MessageBox )
+            writtenTableName = "";   // ganz oder gar nicht: erst nach gelungenem Schreiben gesetzt ( 28.11.26 )
             ExcelOleDb.CheckHasData( valuesString, funktion, "ReadStringList" );
             ExcelOleDb.CheckTableName( newTableName, ExcelOleDb.forbiddenTableCharsAccess, funktion );
             ExcelOleDb.CheckTextLength( valuesString, funktion );

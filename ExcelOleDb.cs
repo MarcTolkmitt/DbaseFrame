@@ -66,7 +66,8 @@ namespace DbaseFrame
         ///           Befund H: geschrieben wird in eine Zwischendatei, die alte Datei erst danach ersetzt ( CommitTarget ),
         ///           bei einem Fehler bleibt sie unverändert ( vorher vor dem Schreiben gelöscht );
         ///           Rückblick: Ordner ohne Schreibrecht → verständliche IOException ( PrepareTarget legt probeweise an );
-        ///           Tabellenname vor dem Dialog geprüft ( CheckTableName, Regeln gemessen ), CREATE TABLE übersetzt
+        ///           Tabellenname vor dem Dialog geprüft ( CheckTableName, Regeln gemessen ), CREATE TABLE übersetzt;
+        ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
         /// </summary>
         Version version = new Version( "1.0.15" );
 
@@ -88,6 +89,13 @@ namespace DbaseFrame
         /// </summary>
         public string lastError = "";
         public string targetFileName = "";
+
+        /// <summary>
+        /// Name der zuletzt geschriebenen Tabelle, so wie GetTableName / ReadTableNames ihn liefern ( 28.11.26 ). Der
+        /// ACE-Treiber legt das Blatt oft verändert an ( "a b" wird "a_b$", "1abc" wird "_1abc$", gemessen ), daher aus der
+        /// geschriebenen Datei gelesen. Zu Beginn jedes Schreibens leer, nur nach gelungenem Schreiben gesetzt.
+        /// </summary>
+        public string writtenTableName = "";
         public List<string[]> valuesString = new List<string[]>();
         public List<double[]> valuesDouble = new List<double[]>();
         public List<string[]> valuesTypes = new List<string[]>();
@@ -936,6 +944,8 @@ namespace DbaseFrame
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListDoubleToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
+            // Ergebnis ganz oder gar nicht: Name erst nach gelungenem Schreiben ( 28.11.26 )
+            writtenTableName = "";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( 28.11.26: Ausnahme statt MessageBox )
             CheckHasData( valuesDouble, "ExcelOleDb.WriteListDoubleToNewTarget", "ReadDoubleList" );
             CheckTableName( newTableName, forbiddenTableCharsExcel, "ExcelOleDb.WriteListDoubleToNewTarget" );
@@ -954,6 +964,7 @@ namespace DbaseFrame
             int columns =  valuesDouble[0].Length;
             string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersDouble, useHeader, columns ), "DOUBLE",
                 out string commandInsert );
+            string neuerName = string.Empty;
             try
             {   // in die Zwischendatei schreiben
                 using ( OleDbConnection connection = new OleDbConnection( conStringStart + zwischen + conStringEnd + withHeader ) )
@@ -976,6 +987,9 @@ namespace DbaseFrame
                         command.ExecuteNonQuery();
                     }
 
+                    // tatsächlicher Blattname, wie der Treiber ihn angelegt hat ( 28.11.26 )
+                    string[ ] angelegt = SheetTables( connection );
+                    neuerName = ( angelegt.Length == 1 ) ? angelegt[ 0 ] : string.Empty;
                     connection.Close();
 
                 }
@@ -986,6 +1000,7 @@ namespace DbaseFrame
                 throw;
             }   // Ende: gescheitert
             CommitTarget( zwischen, newFileTarget, funktion );
+            writtenTableName = neuerName;
             return ( true );
 
         }   // end: WriteListDoubleToNewTarget
@@ -1006,6 +1021,8 @@ namespace DbaseFrame
         /// <exception cref="IOException">Zieldatei vorhanden und nicht freigegeben, oder sie lässt sich nicht ersetzen; die alte bleibt dann unverändert</exception>
         public bool WriteListStringToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
+            // Ergebnis ganz oder gar nicht: Name erst nach gelungenem Schreiben ( 28.11.26 )
+            writtenTableName = "";
             // die Daten haben zu passen: vor Dialog und Datei prüfen ( vorher Abbruch mitten im Schreiben,
             // die Zieldatei blieb mit leerer Tabelle zurück; 28.11.26: keine Daten → Ausnahme statt MessageBox )
             CheckHasData( valuesString, "ExcelOleDb.WriteListStringToNewTarget", "ReadStringList" );
@@ -1027,6 +1044,7 @@ namespace DbaseFrame
             int columns =  valuesString[0].Length;
             string commandCreate = TableCommands( newTableName, ColumnNamesForWrite( headersString, useHeader, columns ), "VARCHAR",
                 out string commandInsert );
+            string neuerName = string.Empty;
             try
             {   // in die Zwischendatei schreiben
                 using ( OleDbConnection connection = new OleDbConnection( conStringStart + zwischen + conStringEnd + withHeader ) )
@@ -1048,6 +1066,9 @@ namespace DbaseFrame
                         command.ExecuteNonQuery();
                     }
 
+                    // tatsächlicher Blattname, wie der Treiber ihn angelegt hat ( 28.11.26 )
+                    string[ ] angelegt = SheetTables( connection );
+                    neuerName = ( angelegt.Length == 1 ) ? angelegt[ 0 ] : string.Empty;
                     connection.Close();
                 }
             }   // Ende: in die Zwischendatei schreiben
@@ -1057,6 +1078,7 @@ namespace DbaseFrame
                 throw;
             }   // Ende: gescheitert
             CommitTarget( zwischen, newFileTarget, funktion );
+            writtenTableName = neuerName;
             return ( true );
 
         }   // end: WriteListStringToNewTarget

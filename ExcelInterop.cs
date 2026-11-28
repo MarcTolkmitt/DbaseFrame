@@ -67,7 +67,8 @@ namespace DbaseFrame
         ///           Punkt l: keine Rückfrage per MessageBox mehr: vorhandene Zieldatei nur nach Bestätigung im Dialog
         ///           oder mit overwrite: true, sonst IOException ( ExcelOleDb.PrepareTarget ); Befund H: geschrieben wird in
         ///           eine Zwischendatei, die alte erst danach ersetzt ( CommitTarget ); Ziel = geöffnete Mappe wird
-        ///           abgewiesen ( vorher gelöscht und dann verloren ); COMException beim Schreiben → IOException
+        ///           abgewiesen ( vorher gelöscht und dann verloren ); COMException beim Schreiben → IOException;
+        ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -78,6 +79,13 @@ namespace DbaseFrame
         public bool useHeader = true;
         public string fileName = "";
         public string targetFileName = "";
+
+        /// <summary>
+        /// Name des Blatts in der zuletzt geschriebenen neuen Mappe, so wie GetSheetName ihn liefert ( 28.11.26, wie
+        /// ExcelOleDb ): der übergebene Name oder bei leerem Namen der von Excel vergebene. Zu Beginn jedes Schreibens
+        /// leer, nur nach gelungenem Schreiben gesetzt.
+        /// </summary>
+        public string writtenTableName = "";
         public string[,] valuesStringArray = null!;
         public double[,] valuesDoubleArray = null!;
         public string[,] valuesTypesArray = null!;
@@ -1524,6 +1532,7 @@ namespace DbaseFrame
         public bool WriteDoublesToNewTarget( string newFileTarget = "", string newTableName = "newDoubles", bool overwrite = false )
         {
             // die Daten haben zu passen: nur endliche Zahlen ( sonst Fehlermeldung statt #ZAHL! )
+            writtenTableName = "";   // ganz oder gar nicht: erst nach gelungenem Schreiben gesetzt ( 28.11.26 )
             CheckFinite( valuesDoubleArray, "WriteDoublesToNewTarget" );
 
             bool perDialog = ( newFileTarget == "" );
@@ -1545,11 +1554,13 @@ namespace DbaseFrame
             */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
             bool gespeichert = false;
+            string neuerName = string.Empty;
             try
             {   // neue Mappe füllen und speichern
                 Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
                 if ( !string.IsNullOrWhiteSpace( newTableName ) )
                     newSheet.Name = newTableName;
+                neuerName = newSheet.Name;   // tatsächlicher Name ( bei leerem Namen der von Excel )
 
                 // calculate the Excel range to write to
                 int colCount = valuesDoubleArray.GetLength( 0 );
@@ -1590,6 +1601,7 @@ namespace DbaseFrame
                     ExcelOleDb.DeleteQuiet( zwischen );
             }   // Ende: neue Mappe schließen
             ExcelOleDb.CommitTarget( zwischen, newFileTarget, funktion );
+            writtenTableName = neuerName;
             return ( true );
 
         }   // end: WriteDoublesToNewTarget
@@ -1611,6 +1623,7 @@ namespace DbaseFrame
         public bool WriteStringsToNewTarget( string newFileTarget = "", string newTableName = "newStrings", bool overwrite = false )
         {
             // die Daten haben zu passen: es muss Texte geben, vor dem Dialog prüfen ( wie WriteDoublesToNewTarget )
+            writtenTableName = "";   // ganz oder gar nicht: erst nach gelungenem Schreiben gesetzt ( 28.11.26 )
             CheckStrings( valuesStringArray, "WriteStringsToNewTarget" );
 
             bool perDialog = ( newFileTarget == "" );
@@ -1632,11 +1645,13 @@ namespace DbaseFrame
             */
             Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
             bool gespeichert = false;
+            string neuerName = string.Empty;
             try
             {   // neue Mappe füllen und speichern
                 Excel.Worksheet newSheet = (Excel.Worksheet)newWorkbook.Worksheets[ 1 ];
                 if ( !string.IsNullOrWhiteSpace( newTableName ) )
                     newSheet.Name = newTableName;
+                neuerName = newSheet.Name;   // tatsächlicher Name ( bei leerem Namen der von Excel )
 
                 // calculate the Excel range to write to
                 int colCount = valuesStringArray.GetLength( 0 );
@@ -1677,6 +1692,7 @@ namespace DbaseFrame
                     ExcelOleDb.DeleteQuiet( zwischen );
             }   // Ende: neue Mappe schließen
             ExcelOleDb.CommitTarget( zwischen, newFileTarget, funktion );
+            writtenTableName = neuerName;
             return ( true );
 
         }   // end: WriteStringsToNewTarget
