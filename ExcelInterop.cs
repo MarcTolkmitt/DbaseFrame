@@ -72,7 +72,10 @@ namespace DbaseFrame
         ///           abgewiesen ( vorher gelöscht und dann verloren ); COMException beim Schreiben → IOException;
         ///           neues Feld writtenTableName: Name der geschriebenen Tabelle, wie GetTableName / GetSheetName ihn liefert;
         ///           ExcelInteropQuit speichert nur noch nach eigener Änderung ( workbookChanged ), vorher jede nicht
-        ///           schreibgeschützte Mappe, auch nach reinem Lesen ( Entscheidung des Nutzers „Verhalten ändern“ )
+        ///           schreibgeschützte Mappe, auch nach reinem Lesen ( Entscheidung des Nutzers „Verhalten ändern“ );
+        ///           netstandard2.0-Build ohne Dateidialoge; für Logs ( GreenWave_Plugin ) neu: OpenOrCreateWorkbook,
+        ///           SelectOrCreateSheet ( Blatt je Routine, Kopfzeile ), InsertRowTop ( neueste Zeile oben, Datum als
+        ///           Excel-Datum ); die Mappe darf dafür bis zum Ende offen bleiben, ExcelInteropQuit erst zum Schluss
         /// </summary>
         Version version = new Version( "1.0.9" );
 
@@ -730,6 +733,196 @@ namespace DbaseFrame
             return ( sheetNumber );
 
         }   // end: NewSheet
+
+        /// <summary>
+        /// Opens 'fileName' for writing, or creates it as a new workbook when it does not exist ( e.g. a log file ).
+        /// A new workbook is saved at once; its first sheet gets 'firstSheetName' if given.
+        /// Use it after the constructor ( which only opens existing files ); it is not for read only instances.
+        /// </summary>
+        /// <param name="firstSheetName">name of the first sheet of a new workbook; empty = Excel's name</param>
+        /// <returns>true = workbook open for writing; false = see 'lastError'</returns>
+        public bool OpenOrCreateWorkbook( string firstSheetName = "" )
+        {
+            /* 28.11.26 ( GreenWave_Plugin, Logs nach Excel ):
+             *  - Datei vorhanden → wie OpenWorkbook ( beschreibbar )
+             *  - Datei fehlt → neue Mappe, gleich unter dem Namen speichern, damit sie danach "vorhanden" ist
+             *  - Ordner fehlt, schreibgeschützte Instanz, Excel nicht gestartet → false mit Grund in lastError
+            */
+            if ( workbookOpen )
+                return ( !readOnly );
+            if ( readOnly )
+            {   // eine nur lesende Instanz legt nichts an
+                lastError = "OpenOrCreateWorkbook: Instanz ist nur zum Lesen ( readOnly ).";
+                return ( false );
+            }   // Ende: eine nur lesende Instanz legt nichts an
+            if ( excelApp == null )
+                return ( false );   // Excel ließ sich nicht starten, Grund steht schon in lastError
+            fileName = CompleteTargetName( fileName );
+            if ( string.IsNullOrWhiteSpace( fileName ) )
+            {   // ohne Namen nichts anlegen
+                lastError = "OpenOrCreateWorkbook: kein Dateiname.";
+                return ( false );
+            }   // Ende: ohne Namen nichts anlegen
+            if ( File.Exists( fileName ) )
+                return ( OpenWorkbook( ) && !readOnly );
+            string ordner = Path.GetDirectoryName( fileName ) ?? "";
+            if ( !Directory.Exists( ordner ) )
+            {   // fehlender Ordner klar melden
+                lastError = $"OpenOrCreateWorkbook: Ordner nicht gefunden: {ordner}";
+                return ( false );
+            }   // Ende: fehlender Ordner klar melden
+
+            bool alteRueckfragen = excelApp.DisplayAlerts;
+            try
+            {   // neue Mappe anlegen und gleich speichern
+                excelApp.DisplayAlerts = false;
+                workbook = excelApp.Workbooks.Add( );
+                if ( !string.IsNullOrWhiteSpace( firstSheetName ) )
+                {   // erstes Blatt benennen
+                    CheckSheetName( firstSheetName, "OpenOrCreateWorkbook" );
+                    Excel.Worksheet erstes = (Excel.Worksheet)workbook.Worksheets[ 1 ];
+                    erstes.Name = firstSheetName;
+                    Marshal.ReleaseComObject( erstes );
+                }   // Ende: erstes Blatt benennen
+                workbook.SaveAs( fileName );
+            }
+            catch ( COMException comEx )
+            {   // z. B. keine Schreibrechte; halb angelegte Mappe schließen, nichts bleibt offen
+                lastError = $"OpenOrCreateWorkbook: Mappe ließ sich nicht anlegen: {fileName}\n" + comEx.Message;
+                if ( workbook != null )
+                {
+                    workbook.Close( SaveChanges: false );
+                    Marshal.ReleaseComObject( workbook );
+                    workbook = null!;
+                }
+                return ( false );
+            }   // Ende: z. B. keine Schreibrechte
+            finally
+            {   // Rückfragen wie vorher
+                excelApp.DisplayAlerts = alteRueckfragen;
+            }   // Ende: Rückfragen wie vorher
+            lastError = "";
+            sheetNumber = 0;
+            workbookChanged = false;
+            workbookOpen = true;
+            return ( true );
+
+        }   // end: bool OpenOrCreateWorkbook
+
+        /// <summary>
+        /// Selects the sheet with this name for the following calls; creates it at the end when it does not exist.
+        /// A new sheet gets 'header' in its first row ( e.g. "Time UTC", "Local time", "Event" ).
+        /// </summary>
+        /// <param name="sheetName">name of the sheet: 1 to 31 characters, none of : \ / ? * [ ]</param>
+        /// <param name="header">first row of a new sheet; null = no header</param>
+        /// <returns>number of the selected sheet, 0 = first</returns>
+        /// <exception cref="ArgumentException">invalid sheet name</exception>
+        public int SelectOrCreateSheet( string sheetName, string[]? header = null )
+        {
+            CheckSheetName( sheetName, "SelectOrCreateSheet" );
+            Excel.Sheets sheetsList = workbook.Worksheets;
+            for ( int nr = 1; nr <= sheetsList.Count; nr++ )
+            {   // vorhandenes Blatt suchen ( Excel unterscheidet Groß-/Kleinschreibung bei Blattnamen nicht )
+                Excel.Worksheet blatt = (Excel.Worksheet)sheetsList[ nr ];
+                bool gefunden = string.Equals( blatt.Name, sheetName, StringComparison.OrdinalIgnoreCase );
+                Marshal.ReleaseComObject( blatt );
+                if ( gefunden )
+                {   // vorhanden; ein noch leeres Blatt ( z. B. das erste einer neuen Mappe ) bekommt die Kopfzeile
+                    sheetNumber = nr - 1;
+                    worksheet = SelectedSheet( );
+                    if ( worksheet.Application.WorksheetFunction.CountA( worksheet.Cells ) == 0 )
+                        WriteHeader( header );
+                    return ( sheetNumber );
+                }   // Ende: vorhanden
+            }   // Ende: vorhandenes Blatt suchen
+            int neu = NewSheet( sheetName );
+            worksheet = SelectedSheet( );
+            WriteHeader( header );
+            return ( neu );
+
+        }   // end: int SelectOrCreateSheet
+
+        /// <summary>
+        /// Inserts one row into the selected sheet directly below the header rows; older rows move down, so the
+        /// newest entry is always on top ( log ). DateTime values become Excel dates ( format dd.mm.yy hh:mm:ss ),
+        /// numbers stay numbers, texts stay texts, null stays empty.
+        /// </summary>
+        /// <param name="values">the cells of the new row from column A</param>
+        /// <param name="headerRows">rows kept on top, e.g. 1 for one header row; 0 = insert in row 1</param>
+        /// <exception cref="ArgumentException">no values, negative headerRows, or a number that is NaN / infinite</exception>
+        public void InsertRowTop( object?[] values, int headerRows = 1 )
+        {
+            // die Daten haben zu passen: vor dem Schreiben prüfen ( nichts halb geschrieben )
+            if ( ( values == null ) || ( values.Length == 0 ) )
+                throw new ArgumentException( "ExcelInterop.InsertRowTop: keine Werte." );
+            if ( headerRows < 0 )
+                throw new ArgumentException( "ExcelInterop.InsertRowTop: headerRows darf nicht negativ sein." );
+            object?[ , ] zeile = new object?[ 1, values.Length ];   // Excel erwartet [ zeile, spalte ]
+            bool[ ] istDatum = new bool[ values.Length ];
+            for ( int x = 0; x < values.Length; x++ )
+            {   // je Zelle umsetzen
+                object? wert = values[ x ];
+                if ( wert is DateTime zeit )
+                {   // Datum als Excel-Zahl, Format folgt unten
+                    zeile[ 0, x ] = zeit.ToOADate( );
+                    istDatum[ x ] = true;
+                }
+                else if ( ( wert is double zahl ) && ( double.IsNaN( zahl ) || double.IsInfinity( zahl ) ) )
+                    throw new ArgumentException( $"ExcelInterop.InsertRowTop: Wert {x + 1} ist keine endliche Zahl ( {zahl} )." );
+                else if ( wert is string text )
+                {   // Text bleibt Text: mit Präfix ' ( sonst rechnet Excel "=…" als Formel, gemessen 28.11.26 ); leer bleibt leer
+                    zeile[ 0, x ] = ( text.Length == 0 ) ? null : "'" + text;
+                }
+                else
+                    zeile[ 0, x ] = wert;
+            }   // Ende: je Zelle umsetzen
+
+            worksheet = SelectedSheet( );
+            int nr = headerRows + 1;
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
+            Excel.Range reihe = (Excel.Range)worksheet.Rows[ nr ];
+            // Format der neuen Zeile von unten ( Daten ) statt von oben ( Kopfzeile )
+            reihe.Insert( Excel.XlInsertShiftDirection.xlShiftDown, Excel.XlInsertFormatOrigin.xlFormatFromRightOrBelow );
+            Marshal.ReleaseComObject( reihe );
+            Excel.Range ziel = worksheet.Range[ GetColumnFromNumber( 1 ) + nr, GetColumnFromNumber( values.Length ) + nr ];
+            ziel.Value2 = zeile;
+            Marshal.ReleaseComObject( ziel );
+            for ( int x = 0; x < values.Length; x++ )
+            {   // Datumszellen formatieren
+                if ( !istDatum[ x ] )
+                    continue;
+                Excel.Range zelle = worksheet.Range[ GetColumnFromNumber( x + 1 ) + nr ];
+                zelle.NumberFormat = "dd.mm.yy hh:mm:ss";
+                Marshal.ReleaseComObject( zelle );
+            }   // Ende: Datumszellen formatieren
+
+        }   // end: void InsertRowTop
+
+        /// <summary>
+        /// Schreibt die Kopfzeile in Zeile 1 des gewählten Blatts ( worksheet ); ohne Kopfzeile nichts ( 28.11.26 ).
+        /// </summary>
+        /// <param name="header">die Spaltennamen; null oder leer = nichts</param>
+        void WriteHeader( string[]? header )
+        {
+            if ( ( header == null ) || ( header.Length == 0 ) )
+                return;
+            workbookChanged = true;   // 28.11.26: ExcelInteropQuit speichert dann
+            worksheet.Range[ GetColumnFromNumber( 1 ) + "1", GetColumnFromNumber( header.Length ) + "1" ].Value2 = header;
+
+        }   // Ende: void WriteHeader
+
+        /// <summary>
+        /// Prüft einen Blattnamen nach Excels Regeln ( 28.11.26 ): 1 bis 31 Zeichen, keines von : \ / ? * [ ].
+        /// </summary>
+        /// <param name="name">der Blattname</param>
+        /// <param name="funktion">aufrufende Funktion für die Meldung</param>
+        /// <exception cref="ArgumentException">ungültiger Name</exception>
+        static void CheckSheetName( string name, string funktion )
+        {
+            if ( string.IsNullOrWhiteSpace( name ) || ( name.Length > 31 ) || ( name.IndexOfAny( new[ ] { ':', '\\', '/', '?', '*', '[', ']' } ) >= 0 ) )
+                throw new ArgumentException( $"ExcelInterop.{funktion}: ungültiger Blattname '{name}' ( 1 bis 31 Zeichen, keines von : \\ / ? * [ ] )." );
+
+        }   // Ende: void CheckSheetName
 
         /* ------------------------------ Lesen ( 27.11.26 )
          *  - gelesen wird das Datenrechteck des aktiven Blatts: der benutzte Bereich ( UsedRange ), auch wenn er
